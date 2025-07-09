@@ -1,5 +1,11 @@
-mod memory;
+mod memory {
+    pub mod dram;
+}
 use memory::dram;
+mod cpu {
+    pub mod basic_cpu;
+}
+use cpu::basic_cpu;
 
 fn main() {
     println!("Hello, world!");
