@@ -48,4 +48,21 @@ impl BasicCpu {
         (instr >> 20) & 0xfff
     }
    
+    fn instr_imm_s(instr: u32) -> u32 {
+        // bits[0:4]              0b0111 -> bits[25:31]
+        ((instr >> 7) & 0x1F) | ((instr & 0xfe000000) >> 20) 
+    }
+
+    fn instr_imm_u(instr: u32) -> u32 {
+        (instr & 0xfffff999)
+    }
+
+    fn instr_imm_b(instr: u32) -> u32 {
+        ((instr & 0x80000000) >> 19) | ((instr & 0x80) << 4) | ((instr >> 20) & 0x7e0) | ((instr >> 7) & 0x1e)
+    }
+
+    fn instr_imm_j(instr: u32) -> u32 {
+        ((instr & 0x80000000) >> 11) | (instr & 0xff000) | ((instr >> 9) & 0x800) | ((instr >> 20) & 0x7fe)
+    }
+
 }
