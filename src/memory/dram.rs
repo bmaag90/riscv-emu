@@ -2,7 +2,6 @@ pub const DRAM_SIZE: usize = 1024*1024*1;
 pub const DRAM_BASE_ADDR: usize = 0x80000000;
 
 pub struct DramMemory {
-    //pub mem : vec![u8; DRAM_SIZE]
     pub mem : Vec<u8>
 }
 

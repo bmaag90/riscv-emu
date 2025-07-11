@@ -8,17 +8,14 @@ mod cpu {
 use cpu::basic_cpu;
 
 fn main() {
-    println!("Hello, world!");
+    println!("Hello there!");
 
     let mut my_dram_memory = dram::DramMemory {
        mem: vec![0; dram::DRAM_SIZE]
     };
+    println!("=====\n DRAM\n=====");
     println!("Init DRAM");
-    // let mut  my_dram_memory = Box::new(
-    //     dram::DramMemory {
-    //         mem: [0; dram::DRAM_SIZE]
-    //     }
-    // );
+
     println!("Writing to DRAM");
     my_dram_memory.dram_write(
         0x80000004, 4*8, 0xAB
@@ -31,4 +28,10 @@ fn main() {
     } else {
         println!("Error W/R - got value = {r_val}");
     }
+
+    println!("=====\n Instructions\n=====");
+
+    let mut my_cpu = basic_cpu::BasicCpu::new();
+
+    
 }
