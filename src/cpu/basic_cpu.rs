@@ -1,4 +1,4 @@
-use dram::{DRAM_SIZE, DRAM_BASE_ADDR, DramMemory};
+use crate::memory::dram::{DRAM_SIZE, DRAM_BASE_ADDR, DramMemory};
 
 pub struct BasicCpu {
     registers : [u32; 32],
@@ -53,6 +53,10 @@ impl BasicCpu {
         println!("Setting register {idx} to {value}");
         self.registers[idx] = value;
     }
+
+    pub fn get_pc(&self) -> usize {
+        self.pc
+    }
     //
     // Processing
     //
@@ -73,64 +77,77 @@ impl BasicCpu {
     //
     // Instruction decoding
     //
-    fn instr_opcode(&self, instr: u32) -> u32{ 
+    pub fn instr_opcode(&self, instr: u32) -> u32{ 
         // cpu operation code
         instr & 0x7F // 0b0111 1111 -> bits[0:7]
     }
 
-    fn instr_rd(&self, instr: u32) -> u32{ 
+    pub fn instr_rd(&self, instr: u32) -> u32{ 
         // destination register
         (instr >> 7) & 0x1f // 0b0001 1111 -> bits[7:11]
     }
 
-    fn instr_func3(&self, instr: u32) -> u32 {
+    pub fn instr_func3(&self, instr: u32) -> u32 {
         (instr >> 12) & 0x07 // 0b0111 -> bits[12:14]
     }
 
-    fn instr_rs1(&self, instr: u32) -> u32 {
+    pub fn instr_rs1(&self, instr: u32) -> u32 {
         (instr >> 15) & 0x07 // 0b0111 -> bits[15:19]
     }
 
-    fn instr_rs2(&self, instr: u32) -> u32 {
+    pub fn instr_rs2(&self, instr: u32) -> u32 {
         (instr >> 20) & 0x07 // 0b0111 -> bits[20:24]
     }
 
-    fn instr_funct7(&self, instr: u32) -> u32 {
+    pub fn instr_funct7(&self, instr: u32) -> u32 {
         (instr >> 25) & 0x7F // 0b0111 -> bits[25:31]
     }
 
-    fn instr_imm_i(&self, instr: u32) -> u32 {
+    pub fn instr_imm_i(&self, instr: u32) -> u32 {
         (instr >> 20) & 0xfff
     }
    
-    fn instr_imm_s(&self, instr: u32) -> u32 {
+    pub fn instr_imm_s(&self, instr: u32) -> u32 {
         // bits[0:4]              0b0111 -> bits[25:31]
         ((instr >> 7) & 0x1F) | ((instr & 0xfe000000) >> 20) 
     }
 
-    fn instr_imm_u(&self, instr: u32) -> u32 {
+    pub fn instr_imm_u(&self, instr: u32) -> u32 {
         instr & 0xfffff999
     }
 
-    fn instr_imm_b(&self, instr: u32) -> u32 {
+    pub fn instr_imm_b(&self, instr: u32) -> u32 {
         ((instr & 0x80000000) >> 19) | ((instr & 0x80) << 4) | ((instr >> 20) & 0x7e0) | ((instr >> 7) & 0x1e)
     }
 
-    fn instr_imm_j(&self, instr: u32) -> u32 {
+    pub fn instr_imm_j(&self, instr: u32) -> u32 {
         ((instr & 0x80000000) >> 11) | (instr & 0xff000) | ((instr >> 9) & 0x800) | ((instr >> 20) & 0x7fe)
     }
 
     //
     // Execute instructions
     //
-    fn execute_imm(&mut self, instr: u32){
+    pub fn execute_imm(&mut self, instr: u32){
         let func3: u32 = self.instr_func3(instr);
         let rd: u32 = self.instr_rd(instr);
         let rs1: u32 = self.instr_rs1(instr);
         let imm: u32 = self.instr_imm_i(instr);
         println!("func3: {func3} - rd: {rd} - rs1: {rs1} - imm: {imm}");
+        /*
+        imm[11:0] rs1 000 rd 0010011 ADDI 
+        imm[11:0] rs1 010 rd 0010011 SLTI 
+        imm[11:0] rs1 011 rd 0010011 SLTIU 
+        imm[11:0] rs1 100 rd 0010011 XORI 
+        imm[11:0] rs1 110 rd 0010011 ORI 
+        imm[11:0] rs1 111 rd 0010011 ANDI
+        */
         match func3 {
             0b000 => self.set_register(rd as usize, self.get_register(rs1 as usize) + imm), // addi
+            0b010 => self.set_register(rd as usize, if (self.get_register(rs1 as usize) as i32) < (imm as i32) { 1 } else { 0 }), // slti
+            0b011 => self.set_register(rd as usize, if self.get_register(rs1 as usize) < imm { 1 } else { 0 }), // sltiu
+            0b100 => self.set_register(rd as usize, self.get_register(rs1 as usize) ^ imm), // xori
+            0b110 => self.set_register(rd as usize, self.get_register(rs1 as usize) | imm), // ori
+            0b111 => self.set_register(rd as usize, self.get_register(rs1 as usize) & imm), // andi
             _ => println!("Function (I-Type) with code func3 {func3} not implemented yet")
         }
 
