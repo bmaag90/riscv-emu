@@ -41,12 +41,12 @@
 - [x] `lui rd, imm20` - Load upper immediate
 
 ## Branch Instructions
-- [ ] `beq rs1, rs2, imm` - Branch Equal
-- [ ] `bne rs1, rs2, imm` - Branch Not Equal
-- [ ] `blt rs1, rs2, imm` - Branch Less Than
-- [ ] `bge rs1, rs2, imm` - Branch Greater or Equal
-- [ ] `bltu rs1, rs2, imm` - Branch Less Than Unsigned
-- [ ] `bgeu rs1, rs2, imm` - Branch Greater or Equal Unsigned
+- [x] `beq rs1, rs2, imm` - Branch Equal
+- [x] `bne rs1, rs2, imm` - Branch Not Equal
+- [x] `blt rs1, rs2, imm` - Branch Less Than
+- [x] `bge rs1, rs2, imm` - Branch Greater or Equal
+- [x] `bltu rs1, rs2, imm` - Branch Less Than Unsigned
+- [x] `bgeu rs1, rs2, imm` - Branch Greater or Equal Unsigned
 
 ## Set Instructions
 - [ ] `slt rd, rs1, rs2` - Set Less Than

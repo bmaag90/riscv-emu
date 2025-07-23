@@ -14,7 +14,7 @@ mod tests {
         assert_eq!(cpu.get_register(0), 0);
         
         // Check if PC is initialized to DRAM base address
-        assert_eq!(cpu.get_pc(), DRAM_BASE_ADDR);
+        assert_eq!(cpu.get_pc(), DRAM_BASE_ADDR.try_into().unwrap());
     }
 
     #[test]
@@ -160,4 +160,99 @@ mod tests {
         assert_eq!(cpu.get_register(1), (DRAM_BASE_ADDR + 0x12345000) as u32);
     }
     
+    #[test]
+    fn test_jal_instruction() {
+        let mut cpu = BasicCpu::new();
+        cpu.init();
+        let initial_pc = cpu.get_pc();
+
+        // JAL x1, 1024 (jump forward 1024 bytes and store return address in x1)
+        let jal = 0x400000EF;    // imm=1024, rd=x1
+        cpu.execute_instr(jal);
+
+        // Check return address stored in x1 (PC + 4)
+        assert_eq!(cpu.get_register(1), (initial_pc + 4) as u32);
+        // Check new PC value (PC + 1024)
+        assert_eq!(cpu.get_pc(), initial_pc + 1024);
+    }
+
+    #[test]
+    fn test_jalr_instruction() {
+        let mut cpu = BasicCpu::new();
+        cpu.init();
+        let initial_pc = cpu.get_pc();
+
+        // Setup base address in x1
+        cpu.set_register(1, (initial_pc + 100) as u32);
+        
+        // JALR x2, x1, 8 (jump to x1 + 8 and store return address in x2)
+        let jalr = 0x00808167;    // imm=8, rs1=x1, rd=x2
+        cpu.execute_instr(jalr);
+
+        // Check return address stored in x2 (PC + 4)
+        assert_eq!(cpu.get_register(2), (initial_pc + 4) as u32);
+        // Check new PC value (x1 + 8)
+        assert_eq!(cpu.get_pc(), initial_pc + 108);
+    }
+
+    #[test]
+    fn test_branch_instructions() {
+        let mut cpu = BasicCpu::new();
+        cpu.init();
+        let initial_pc = cpu.get_pc();
+
+        // Setup test values
+        cpu.set_register(1, 5);  // x1 = 5
+        cpu.set_register(2, 10); // x2 = 10
+        cpu.set_register(3, 5);  // x3 = 5 (equal to x1)
+        cpu.set_register(4, 0xFFFFFFFF); // x4 = -1 (signed)
+
+        // Test BEQ (Branch if Equal)
+        // BEQ x1, x3, 8 (branch if x1 == x3)
+        let beq = 0x00308463;    // imm=8, rs1=x1, rs2=x3
+        cpu.execute_instr(beq);
+        assert_eq!(cpu.get_pc(), initial_pc + 8); // Should branch
+
+        // Test BNE (Branch if Not Equal)
+        cpu.set_pc(initial_pc);
+        // BNE x1, x2, 8 (branch if x1 != x2)
+        let bne = 0x00209463;    // imm=8, rs1=x1, rs2=x2
+        cpu.execute_instr(bne);
+        assert_eq!(cpu.get_pc(), initial_pc + 8); // Should branch
+
+        // Test BLT (Branch if Less Than)
+        cpu.set_pc(initial_pc);
+        // BLT x1, x2, 8 (branch if x1 < x2)
+        let blt = 0x0020C463;    // imm=8, rs1=x1, rs2=x2
+        cpu.execute_instr(blt);
+        assert_eq!(cpu.get_pc(), initial_pc + 8); // Should branch
+
+        // Test BGE (Branch if Greater or Equal)
+        cpu.set_pc(initial_pc);
+        // BGE x1, x3, 8 (branch if x1 >= x3)
+        let bge = 0x0030D463;    // imm=8, rs1=x1, rs2=x3
+        cpu.execute_instr(bge);
+        assert_eq!(cpu.get_pc(), initial_pc + 8); // Should branch
+
+        // Test BLTU (Branch if Less Than Unsigned)
+        cpu.set_pc(initial_pc);
+        // BLTU x1, x4, 8 (branch if x1 < x4 unsigned)
+        let bltu = 0x00406463;    // imm=8, rs1=x1, rs2=x4
+        cpu.execute_instr(bltu);
+        assert_eq!(cpu.get_pc(), initial_pc + 8); // Should branch (5 < 0xFFFFFFFF unsigned)
+
+        // Test BGEU (Branch if Greater or Equal Unsigned)
+        cpu.set_pc(initial_pc);
+        // BGEU x4, x1, 8 (branch if x4 >= x1 unsigned)
+        let bgeu = 0x00127463;    // imm=8, rs1=x4, rs2=x1
+        cpu.execute_instr(bgeu);
+        assert_eq!(cpu.get_pc(), initial_pc + 8); // Should branch (0xFFFFFFFF > 5 unsigned)
+
+        // Test branch not taken
+        cpu.set_pc(initial_pc);
+        // BEQ x1, x2, 8 (branch if x1 == x2, which is false)
+        let beq_not_taken = 0x00208463;
+        cpu.execute_instr(beq_not_taken);
+        assert_eq!(cpu.get_pc(), initial_pc + 4); // Should not branch, PC += 4
+    }
 }

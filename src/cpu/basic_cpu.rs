@@ -1,8 +1,11 @@
 use crate::memory::dram::{DRAM_SIZE, DRAM_BASE_ADDR, DramMemory};
 
+pub const REGISTERS_COUNT: usize = 32;
+pub type TypeRegister = u32;
+
 pub struct BasicCpu {
-    registers : [u32; 32],
-    pc : usize,
+    registers : [u32; REGISTERS_COUNT],
+    pc : TypeRegister,
     pub mem : DramMemory
 }
 
@@ -10,18 +13,18 @@ impl BasicCpu {
     
     pub fn new() -> BasicCpu{
         BasicCpu {
-            registers: [0; 32],
+            registers: [0; REGISTERS_COUNT],
             pc: 0x0,
             mem: DramMemory {
                 mem: vec![0; DRAM_SIZE]
             }
         }
-    }
+    }   
 
     pub fn init(&mut self){
         self.registers[0] = 0x0; // const. zero
-        self.registers[2] = (DRAM_BASE_ADDR + DRAM_SIZE) as u32; // stack pointer
-        self.pc = DRAM_BASE_ADDR;
+        self.registers[2] = (DRAM_BASE_ADDR + DRAM_SIZE) as TypeRegister; // stack pointer
+        self.pc = DRAM_BASE_ADDR as TypeRegister;
     }
 
     pub fn print_registers(&self){
@@ -37,7 +40,7 @@ impl BasicCpu {
         println!("=================");
     }
 
-    pub fn get_register(&self, idx: usize) -> u32{
+    pub fn get_register(&self, idx: usize) -> TypeRegister{
         if idx > 32 {
             println!("Invalid register index {idx}");
             return 0
@@ -54,14 +57,19 @@ impl BasicCpu {
         self.registers[idx] = value;
     }
 
-    pub fn get_pc(&self) -> usize {
+    pub fn get_pc(&self) -> TypeRegister {
         self.pc
+    }
+
+    pub fn set_pc(&mut self, pc: TypeRegister) {
+        println!("Setting program counter to {pc}");
+        self.pc = pc;
     }
     //
     // Processing
     //
     pub fn fetch_instr(&mut self) -> u32{
-        self.mem.dram_read(self.pc, 32) as u32 // read instruction at program counter, 4bytes
+        self.mem.dram_read(self.pc.try_into().unwrap(), 32) as u32 // read instruction at program counter, 4bytes
     }
 
     pub fn execute_instr(&mut self, instr: u32){
@@ -73,6 +81,9 @@ impl BasicCpu {
             0b0010011 => self.execute_imm(instr),
             0b0110111 => self.execute_lui(instr),
             0b0010111 => self.execute_auipc(instr),
+            0b1101111 => self.execute_jal(instr),
+            0b1100111 => self.execute_jalr(instr),
+            0b1100011 => self.execute_branch(instr),
             _ => println!("Instruction with opcode {opcode} not implemented yet"),
         }
     }
@@ -180,5 +191,88 @@ impl BasicCpu {
         println!("[Instruction] opcode (0b0010111): rd: {rd} - imm: {imm} (- pc: {pc})");
         // imm[31:12] rd 0010111 AUIPC
         self.set_register(rd as usize, pc + imm)
+    }
+
+    pub fn execute_jal(&mut self, instr: u32){
+        let rd: u32 = self.instr_rd(instr);
+        let imm: u32 = self.instr_imm_j(instr);
+        let pc: u32 = self.get_pc() as u32;
+        println!("[Instruction] opcode (0b1101111): rd: {rd} - imm: {imm} (- pc: {pc})");
+        // imm[20] imm[10:1] imm[11] imm[19:12] rd 1101111 JAL
+        self.set_register(rd as usize, pc + 4); // store return address
+        self.set_pc((pc as i32 + imm as i32) as TypeRegister); // jump to target address
+    }
+
+    pub fn execute_jalr(&mut self, instr: u32){
+        let rd: u32 = self.instr_rd(instr);
+        let rs1: u32 = self.instr_rs1(instr);
+        let imm: u32 = self.instr_imm_i(instr);
+        let pc: u32 = self.get_pc() as u32;
+        println!("[Instruction] opcode (0b1100111): rd: {rd} - rs1: {rs1} - imm: {imm} (- pc: {pc})");
+        // imm[11:0] rs1 000 rd 1100111 JALR
+        self.set_register(rd as usize, pc + 4); // store return address
+        self.set_pc((self.get_register(rs1 as usize) + imm) as TypeRegister & !1); // jump to target address (clear LSB)
+    }
+
+    pub fn execute_branch(&mut self, instr: u32){
+        let func3: u32 = self.instr_func3(instr);
+        let rs1: u32 = self.instr_rs1(instr);
+        let rs2: u32 = self.instr_rs2_shamt(instr);
+        let imm: u32 = self.instr_imm_b(instr);
+        let pc: u32 = self.get_pc() as u32;
+        println!("[Instruction] opcode (0b1100011): func3: {func3} - rs1: {rs1} - rs2: {rs2} - imm: {imm} (- pc: {pc})");
+        /*
+        imm[12|10:5] rs2 rs1 000 imm[4:1|11] 1100011 BEQ 
+        imm[12|10:5] rs2 rs1 001 imm[4:1|11] 1100011 BNE 
+        imm[12|10:5] rs2 rs1 100 imm[4:1|11] 1100011 BLT 
+        imm[12|10:5] rs2 rs1 101 imm[4:1|11] 1100011 BGE 
+        imm[12|10:5] rs2 rs1 110 imm[4:1|11] 1100011 BLTU 
+        imm[12|10:5] rs2 rs1 111 imm[4:1|11] 1100011 BGEU
+        */
+        match func3 {
+            0b000 => { // BEQ
+                if self.get_register(rs1 as usize) == self.get_register(rs2 as usize) {
+                    self.set_pc((pc as i64 + imm as i64) as TypeRegister);
+                } else {
+                    self.set_pc((pc + 4) as TypeRegister);
+                }
+            },
+            0b001 => { // BNE
+                if self.get_register(rs1 as usize) != self.get_register(rs2 as usize) {
+                    self.set_pc((pc as i32 + imm as i32) as TypeRegister);
+                } else {
+                    self.set_pc((pc + 4) as TypeRegister);    
+                }
+            },
+            0b100 => { // BLT
+                if (self.get_register(rs1 as usize) as i32) < (self.get_register(rs2 as usize) as i32) {
+                    self.set_pc((pc as i32 + imm as i32) as TypeRegister);
+                } else {
+                    self.set_pc((pc + 4) as TypeRegister);    
+                }
+            },
+            0b101 => { // BGE
+                if (self.get_register(rs1 as usize) as i32) >= (self.get_register(rs2 as usize) as i32) {
+                    self.set_pc((pc as i32 + imm as i32) as TypeRegister);
+                } else {
+                    self.set_pc((pc + 4) as TypeRegister);    
+                }
+            },
+            0b110 => { // BLTU
+                if self.get_register(rs1 as usize) < self.get_register(rs2 as usize) {
+                    self.set_pc((pc as i32 + imm as i32) as TypeRegister);
+                } else {
+                    self.set_pc((pc + 4) as TypeRegister);
+                }
+            },
+            0b111 => { // BGEU
+                if self.get_register(rs1 as usize) >= self.get_register(rs2 as usize) {
+                    self.set_pc((pc as i32 + imm as i32) as TypeRegister);
+                } else {
+                    self.set_pc((pc + 4) as TypeRegister);
+                }
+            },
+            _ => println!("Function (B-Type) with code func3 {func3} not found")
+        }   
     }
 }
