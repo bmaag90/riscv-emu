@@ -72,4 +72,4 @@
 - [ ] `call symbol` - Call Function
 
 ## Misc
-- [ ] `auipc rd, imm`, AUIPC - add upper immediate to pc
+- [x] `auipc rd, imm`, AUIPC - add upper immediate to pc
