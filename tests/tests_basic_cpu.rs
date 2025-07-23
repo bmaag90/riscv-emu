@@ -91,10 +91,10 @@ mod tests {
         assert_eq!(cpu.get_register(2), 0x4);
 
         // Test SRAI (Shift Right Arithmetic Immediate)
-        cpu.set_register(3, 0xFFFFFFFF);  // -1 in two's complement
+        cpu.set_register(3, 0xFFFFFFFFFFFFFFFF);  // -1 in two's complement
         let srai = 0x41f1d193;    // srai x3, x3, 31
         cpu.execute_instr(srai);
-        assert_eq!(cpu.get_register(3), 0xFFFFFFFF);  // Should remain -1
+        assert_eq!(cpu.get_register(3), 0xFFFFFFFFFFFFFFFF);  // Should remain -1
     }
 
     #[test]
@@ -157,7 +157,7 @@ mod tests {
         // Test AUIPC (Add Upper Immediate to PC)
         let auipc = 0x12345097;   // auipc x1
         cpu.execute_instr(auipc);
-        assert_eq!(cpu.get_register(1), (DRAM_BASE_ADDR + 0x12345000) as u32);
+        assert_eq!(cpu.get_register(1), (DRAM_BASE_ADDR + 0x12345000) as u64);
     }
     
     #[test]
@@ -171,7 +171,7 @@ mod tests {
         cpu.execute_instr(jal);
 
         // Check return address stored in x1 (PC + 4)
-        assert_eq!(cpu.get_register(1), (initial_pc + 4) as u32);
+        assert_eq!(cpu.get_register(1), (initial_pc + 4) as u64);
         // Check new PC value (PC + 1024)
         assert_eq!(cpu.get_pc(), initial_pc + 1024);
     }
@@ -183,14 +183,14 @@ mod tests {
         let initial_pc = cpu.get_pc();
 
         // Setup base address in x1
-        cpu.set_register(1, (initial_pc + 100) as u32);
+        cpu.set_register(1, (initial_pc + 100) as u64);
         
         // JALR x2, x1, 8 (jump to x1 + 8 and store return address in x2)
         let jalr = 0x00808167;    // imm=8, rs1=x1, rd=x2
         cpu.execute_instr(jalr);
 
         // Check return address stored in x2 (PC + 4)
-        assert_eq!(cpu.get_register(2), (initial_pc + 4) as u32);
+        assert_eq!(cpu.get_register(2), (initial_pc + 4) as u64);
         // Check new PC value (x1 + 8)
         assert_eq!(cpu.get_pc(), initial_pc + 108);
     }
@@ -254,5 +254,85 @@ mod tests {
         let beq_not_taken = 0x00208463;
         cpu.execute_instr(beq_not_taken);
         assert_eq!(cpu.get_pc(), initial_pc + 4); // Should not branch, PC += 4
+    }
+
+    #[test]
+    fn test_load_instructions() {
+        let mut cpu = BasicCpu::new();
+        cpu.init();
+        
+        // Setup: Store test values in memory
+        cpu.mem.dram_write(DRAM_BASE_ADDR, 32, 0xFF00FF00);
+        cpu.mem.dram_write(DRAM_BASE_ADDR + 4, 64, 0xDEADBEEF12345678);
+        // Set base address in register
+        cpu.set_register(1, DRAM_BASE_ADDR as u64);
+
+        // Test LB (Load Byte signed)
+        let lb = 0x00008083;    // lb x1, 0(x1)
+        cpu.execute_instr(lb);
+        assert_eq!(cpu.get_register(1), 0x0); // Should sign extend 0x00
+
+        // Test LH (Load Halfword signed)
+        cpu.set_register(2, (DRAM_BASE_ADDR + 4) as u64);
+        let lh = 0x00011103;    // lh x2, 0(x2)
+        cpu.execute_instr(lh);
+        assert_eq!(cpu.get_register(2), 0x5678); 
+
+        // Test LW (Load Word signed)
+        cpu.set_register(3, (DRAM_BASE_ADDR + 4) as u64);
+        let lw = 0x0001A183;    // lw x3, 0(x3)
+        cpu.execute_instr(lw);
+        assert_eq!(cpu.get_register(3), 0x12345678); 
+
+        // Test LBU (Load Byte unsigned)
+        cpu.set_register(4, DRAM_BASE_ADDR as u64);
+        let lbu = 0x00024203;   // lbu x4, 0(x4)
+        cpu.execute_instr(lbu);
+        assert_eq!(cpu.get_register(4), 0x00); // Should zero extend
+
+        // Test LHU (Load Halfword unsigned)
+        cpu.set_register(5, DRAM_BASE_ADDR as u64);
+        let lhu = 0x0002D283;   // lhu x5, 0(x5)
+        cpu.execute_instr(lhu);
+        assert_eq!(cpu.get_register(5), 0xFF00); // Should zero extend
+    }
+
+    #[test]
+    fn test_store_instructions() {
+        let mut cpu = BasicCpu::new();
+        cpu.init();
+
+        // Set base address in register
+        cpu.set_register(1, DRAM_BASE_ADDR as u64);
+        
+        // Test SB (Store Byte)
+        cpu.set_register(2, 0xFF);
+        let sb = 0x00208023;    // sb x2, 0(x1)
+        cpu.execute_instr(sb);
+        assert_eq!(cpu.mem.dram_read(DRAM_BASE_ADDR, 8), 0xFF);
+
+        // Test SH (Store Halfword)
+        cpu.set_register(3, 0xABCD);
+        let sh = 0x00309123;    // sh x3, 2(x1)
+        cpu.execute_instr(sh);
+        assert_eq!(cpu.mem.dram_read(DRAM_BASE_ADDR + 2, 16), 0xABCD);
+
+        // Test SW (Store Word)
+        cpu.set_register(4, 0x12345678);
+        let sw = 0x0040A223;    // sw x4, 4(x1)
+        cpu.execute_instr(sw);
+        assert_eq!(cpu.mem.dram_read(DRAM_BASE_ADDR + 4, 32), 0x12345678);
+
+        // Test overlapping stores
+        cpu.set_register(5, 0xFF);
+        let sb2 = 0x00508423;   // sb x5, 8(x1)
+        cpu.execute_instr(sb2);
+        
+        cpu.set_register(6, 0xABCD);
+        let sh2 = 0x00609423;   // sh x6, 8(x1)
+        cpu.execute_instr(sh2);
+        
+        // Verify that the halfword write overwrote the previous byte write
+        assert_eq!(cpu.mem.dram_read(DRAM_BASE_ADDR + 8, 16), 0xABCD);
     }
 }

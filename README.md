@@ -30,14 +30,14 @@
 - [x] `srai rd, rs1, imm` - Shift Right Arithmetic Immediate
 
 ## Load/Store
-- [ ] `lw rd, imm(rs1)` - Load Word
-- [ ] `lh rd, imm(rs1)` - Load Half
-- [ ] `lhu rd, imm(rs1)` - Load Half Unsigned
-- [ ] `lb rd, imm(rs1)` - Load Byte
-- [ ] `lbu rd, imm(rs1)` - Load Byte Unsigned
-- [ ] `sw rs2, imm(rs1)` - Store Word
-- [ ] `sh rs2, imm(rs1)` - Store Half
-- [ ] `sb rs2, imm(rs1)` - Store Byte
+- [x] `lw rd, imm(rs1)` - Load Word
+- [x] `lh rd, imm(rs1)` - Load Half
+- [x] `lhu rd, imm(rs1)` - Load Half Unsigned
+- [x] `lb rd, imm(rs1)` - Load Byte
+- [x] `lbu rd, imm(rs1)` - Load Byte Unsigned
+- [x] `sw rs2, imm(rs1)` - Store Word
+- [x] `sh rs2, imm(rs1)` - Store Half
+- [x] `sb rs2, imm(rs1)` - Store Byte
 - [x] `lui rd, imm20` - Load upper immediate
 
 ## Branch Instructions
@@ -55,8 +55,8 @@
 - [x] `sltiu rd, rs1, imm` - Set Less Than Immediate Unsigned
 
 ## Jump Instructions
-- [ ] `jal rd, imm` - Jump and Link
-- [ ] `jalr rd, rs1, imm` - Jump and Link Register
+- [x] `jal rd, imm` - Jump and Link
+- [x] `jalr rd, rs1, imm` - Jump and Link Register
 
 ## System Instructions
 - [ ] `ecall` - Environment Call

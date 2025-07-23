@@ -1,11 +1,14 @@
 use crate::memory::dram::{DRAM_SIZE, DRAM_BASE_ADDR, DramMemory};
 
 pub const REGISTERS_COUNT: usize = 32;
-pub type TypeRegister = u32;
+// RV64i
+pub type TReg = u64;
+pub type TInstr = u32;
+pub type TImm = u64; // immediate value
 
 pub struct BasicCpu {
-    registers : [u32; REGISTERS_COUNT],
-    pc : TypeRegister,
+    registers : [TReg; REGISTERS_COUNT],
+    pc : TReg,
     pub mem : DramMemory
 }
 
@@ -23,8 +26,8 @@ impl BasicCpu {
 
     pub fn init(&mut self){
         self.registers[0] = 0x0; // const. zero
-        self.registers[2] = (DRAM_BASE_ADDR + DRAM_SIZE) as TypeRegister; // stack pointer
-        self.pc = DRAM_BASE_ADDR as TypeRegister;
+        self.registers[2] = (DRAM_BASE_ADDR + DRAM_SIZE) as TReg; // stack pointer
+        self.pc = DRAM_BASE_ADDR as TReg;
     }
 
     pub fn print_registers(&self){
@@ -40,7 +43,7 @@ impl BasicCpu {
         println!("=================");
     }
 
-    pub fn get_register(&self, idx: usize) -> TypeRegister{
+    pub fn get_register(&self, idx: usize) -> TReg{
         if idx > 32 {
             println!("Invalid register index {idx}");
             return 0
@@ -48,7 +51,7 @@ impl BasicCpu {
         self.registers[idx]
     }
 
-    pub fn set_register(&mut self, idx: usize, value: u32) {
+    pub fn set_register(&mut self, idx: usize, value: TReg) {
         if idx > 32 {
             println!("Invalid register index {idx}");
             return 
@@ -57,22 +60,22 @@ impl BasicCpu {
         self.registers[idx] = value;
     }
 
-    pub fn get_pc(&self) -> TypeRegister {
+    pub fn get_pc(&self) -> TReg {
         self.pc
     }
 
-    pub fn set_pc(&mut self, pc: TypeRegister) {
+    pub fn set_pc(&mut self, pc: TReg) {
         println!("Setting program counter to {pc}");
         self.pc = pc;
     }
     //
     // Processing
     //
-    pub fn fetch_instr(&mut self) -> u32{
-        self.mem.dram_read(self.pc.try_into().unwrap(), 32) as u32 // read instruction at program counter, 4bytes
+    pub fn fetch_instr(&mut self) -> TInstr{
+        self.mem.dram_read(self.get_pc() as usize, 32) as TInstr // read instruction at program counter, 4bytes
     }
 
-    pub fn execute_instr(&mut self, instr: u32){
+    pub fn execute_instr(&mut self, instr: TInstr){
         let opcode: u32 = self.instr_opcode(instr);
         //let func3: u32 = self.instr_func3(instr);
         //let instr_funct7: u32 = self.instr_funct7(instr);
@@ -84,69 +87,71 @@ impl BasicCpu {
             0b1101111 => self.execute_jal(instr),
             0b1100111 => self.execute_jalr(instr),
             0b1100011 => self.execute_branch(instr),
+            0b0000011 => self.execute_load(instr),
+            0b0100011 => self.execute_store(instr),
             _ => println!("Instruction with opcode {opcode} not implemented yet"),
         }
     }
     //
     // Instruction decoding
     //
-    pub fn instr_opcode(&self, instr: u32) -> u32{ 
+    pub fn instr_opcode(&self, instr: TInstr) -> TInstr{ 
         // cpu operation code
         instr & 0x7F // 0b0111 1111 -> bits[0:7]
     }
 
-    pub fn instr_rd(&self, instr: u32) -> u32{ 
+    pub fn instr_rd(&self, instr: TInstr) -> TInstr{ 
         // destination register
         (instr >> 7) & 0x1f // 0b0001 1111 -> bits[7:11]
     }
 
-    pub fn instr_func3(&self, instr: u32) -> u32 {
+    pub fn instr_func3(&self, instr: TInstr) -> TInstr {
         (instr >> 12) & 0x07 // 0b0111 -> bits[12:14]
     }
 
-    pub fn instr_rs1(&self, instr: u32) -> u32 {
+    pub fn instr_rs1(&self, instr: TInstr) -> TInstr {
         (instr >> 15) & 0x07 // 0b0111 -> bits[15:19]
     }
 
-    pub fn instr_rs2_shamt(&self, instr: u32) -> u32 {
+    pub fn instr_rs2_shamt(&self, instr: TInstr) -> TInstr {
         (instr >> 20) & 0x07 // 0b0111 -> bits[20:24]
     }
 
-    pub fn instr_funct7(&self, instr: u32) -> u32 {
+    pub fn instr_funct7(&self, instr: TInstr) -> TInstr {
         (instr >> 25) & 0x7F // 0b0111 -> bits[25:31]
     }
 
-    pub fn instr_imm_i(&self, instr: u32) -> u32 {
+    pub fn instr_imm_i(&self, instr: TInstr) -> TInstr {
         (instr >> 20) & 0xfff
     }
    
-    pub fn instr_imm_s(&self, instr: u32) -> u32 {
+    pub fn instr_imm_s(&self, instr: TInstr) -> TInstr {
         // bits[0:4]              0b0111 -> bits[25:31]
         ((instr >> 7) & 0x1F) | ((instr & 0xfe000000) >> 20) 
     }
 
-    pub fn instr_imm_u(&self, instr: u32) -> u32 {
+    pub fn instr_imm_u(&self, instr: TInstr) -> TInstr {
         instr & 0xfffff000 // NOTE: NOT bit shifted, lower 12 bits are already filled with zeros for LUI (& auipc) instr.
     }
 
-    pub fn instr_imm_b(&self, instr: u32) -> u32 {
+    pub fn instr_imm_b(&self, instr: TInstr) -> TInstr {
         ((instr & 0x80000000) >> 19) | ((instr & 0x80) << 4) | ((instr >> 20) & 0x7e0) | ((instr >> 7) & 0x1e)
     }
 
-    pub fn instr_imm_j(&self, instr: u32) -> u32 {
+    pub fn instr_imm_j(&self, instr: TInstr) -> TInstr {
         ((instr & 0x80000000) >> 11) | (instr & 0xff000) | ((instr >> 9) & 0x800) | ((instr >> 20) & 0x7fe)
     }
 
     //
     // Execute instructions
     //
-    pub fn execute_imm(&mut self, instr: u32){
-        let func3: u32 = self.instr_func3(instr);
-        let rd: u32 = self.instr_rd(instr);
-        let rs1: u32 = self.instr_rs1(instr);
-        let imm: u32 = self.instr_imm_i(instr);
-        let rs2_shamt: u32 = self.instr_rs2_shamt(instr);
-        let func7: u32 = self.instr_funct7(instr);
+    pub fn execute_imm(&mut self, instr: TInstr){
+        let func3: TInstr = self.instr_func3(instr);
+        let rd: TInstr = self.instr_rd(instr);
+        let rs1: TInstr = self.instr_rs1(instr);
+        let imm: TImm = self.instr_imm_i(instr) as i32 as i64 as u64; // sign-extend immediate value
+        let rs2_shamt: TInstr = self.instr_rs2_shamt(instr);
+        let func7: TInstr = self.instr_funct7(instr);
         println!("[Instruction] opcode (0b0010011): func3: {func3} - rd: {rd} - rs1: {rs1} - imm: {imm}");
         /*
         imm[11:0] rs1 000 rd 0010011 ADDI 
@@ -160,14 +165,14 @@ impl BasicCpu {
         0100000 shamt rs1 101 rd 0010011 SRAI
         */
         match func3 {
-            0b000 => self.set_register(rd as usize, self.get_register(rs1 as usize) + imm), // addi
-            0b001 => self.set_register(rd as usize, self.get_register(rs1 as usize) << rs2_shamt), // slli
-            0b010 => self.set_register(rd as usize, if (self.get_register(rs1 as usize) as i32) < (imm as i32) { 1 } else { 0 }), // slti
+            0b000 => self.set_register(rd as usize, self.get_register(rs1 as usize).wrapping_add(imm)), // addi
+            0b001 => self.set_register(rd as usize, self.get_register(rs1 as usize).wrapping_shl(rs2_shamt)), // slli
+            0b010 => self.set_register(rd as usize, if (self.get_register(rs1 as usize) as i64) < (imm as i64) { 1 } else { 0 }), // slti
             0b011 => self.set_register(rd as usize, if self.get_register(rs1 as usize) < imm { 1 } else { 0 }), // sltiu
             0b100 => self.set_register(rd as usize, self.get_register(rs1 as usize) ^ imm), // xori
             0b101 => match func7 {
-                0b0000000 => self.set_register(rd as usize, self.get_register(rs1 as usize) >> rs2_shamt), // srli - SRLI is a logical right shift (zeros are shifted into the upper bits).
-                0b0100000 => self.set_register(rd as usize, ((self.get_register(rs1 as usize) as i32) >> rs2_shamt) as u32), // srai - SRAI is an arithmetic right shift (the original sign bit is copied into the vacated upper bits).
+                0b0000000 => self.set_register(rd as usize, self.get_register(rs1 as usize).wrapping_shr(rs2_shamt)), // srli - SRLI is a logical right shift (zeros are shifted into the upper bits).
+                0b0100000 => self.set_register(rd as usize, ((self.get_register(rs1 as usize) as i64).wrapping_shr(rs2_shamt)) as TReg), // srai - SRAI is an arithmetic right shift (the original sign bit is copied into the vacated upper bits).
                 _ => println!("Function (I-Type) with code func3 {func3} AND func7 {func7} not found")
             },
             0b110 => self.set_register(rd as usize, self.get_register(rs1 as usize) | imm), // ori
@@ -176,50 +181,51 @@ impl BasicCpu {
         }
     }
 
-    pub fn execute_lui(&mut self, instr: u32){
-        let rd: u32 = self.instr_rd(instr);
-        let imm: u32 = self.instr_imm_u(instr);
+    pub fn execute_lui(&mut self, instr: TInstr){
+        let rd: TInstr = self.instr_rd(instr);
+        let imm: TImm = self.instr_imm_u(instr) as i32 as i64 as u64; // sign-extend immediate value
         println!("[Instruction] opcode (0b0110111): rd: {rd} - imm: {imm}");
         // imm[31:12] rd 0110111 LUI
         self.set_register(rd as usize, imm);
     }
 
-    pub fn execute_auipc(&mut self, instr: u32){
-        let rd: u32 = self.instr_rd(instr);
-        let imm: u32 = self.instr_imm_u(instr);
-        let pc: u32 = self.get_pc() as u32;
+    pub fn execute_auipc(&mut self, instr: TInstr){
+        let rd: TInstr = self.instr_rd(instr);
+        let imm: TImm = self.instr_imm_u(instr) as i32 as i64 as u64; // sign-extend immediate value
+        let pc: TReg = self.get_pc();
         println!("[Instruction] opcode (0b0010111): rd: {rd} - imm: {imm} (- pc: {pc})");
         // imm[31:12] rd 0010111 AUIPC
-        self.set_register(rd as usize, pc + imm)
+        self.set_register(rd as usize, pc.wrapping_add(imm)); // add immediate value to current pc
     }
 
-    pub fn execute_jal(&mut self, instr: u32){
-        let rd: u32 = self.instr_rd(instr);
-        let imm: u32 = self.instr_imm_j(instr);
-        let pc: u32 = self.get_pc() as u32;
+    pub fn execute_jal(&mut self, instr: TInstr){
+        let rd: TInstr = self.instr_rd(instr);
+        let imm: TImm = self.instr_imm_j(instr) as i32 as i64 as u64; // sign-extend immediate value
+        let pc: TReg = self.get_pc();
         println!("[Instruction] opcode (0b1101111): rd: {rd} - imm: {imm} (- pc: {pc})");
         // imm[20] imm[10:1] imm[11] imm[19:12] rd 1101111 JAL
-        self.set_register(rd as usize, pc + 4); // store return address
-        self.set_pc((pc as i32 + imm as i32) as TypeRegister); // jump to target address
+        self.set_register(rd as usize, pc.wrapping_add(4)); // store return address
+        let new_pc: TReg = pc.wrapping_add(imm); // calculate new pc
+        self.set_pc(new_pc); // jump to target address
     }
 
-    pub fn execute_jalr(&mut self, instr: u32){
-        let rd: u32 = self.instr_rd(instr);
-        let rs1: u32 = self.instr_rs1(instr);
-        let imm: u32 = self.instr_imm_i(instr);
-        let pc: u32 = self.get_pc() as u32;
+    pub fn execute_jalr(&mut self, instr: TInstr){
+        let rd: TInstr = self.instr_rd(instr);
+        let rs1: TInstr = self.instr_rs1(instr);
+        let imm: TImm = self.instr_imm_i(instr) as i32 as i64 as u64; // sign-extend immediate value;
+        let pc: TReg = self.get_pc();
         println!("[Instruction] opcode (0b1100111): rd: {rd} - rs1: {rs1} - imm: {imm} (- pc: {pc})");
         // imm[11:0] rs1 000 rd 1100111 JALR
-        self.set_register(rd as usize, pc + 4); // store return address
-        self.set_pc((self.get_register(rs1 as usize) + imm) as TypeRegister & !1); // jump to target address (clear LSB)
+        self.set_register(rd as usize, pc.wrapping_add(4)); // store return address
+        self.set_pc(self.get_register(rs1 as usize).wrapping_add(imm) as TReg & !1); // jump to target address (clear LSB)
     }
 
-    pub fn execute_branch(&mut self, instr: u32){
-        let func3: u32 = self.instr_func3(instr);
-        let rs1: u32 = self.instr_rs1(instr);
-        let rs2: u32 = self.instr_rs2_shamt(instr);
-        let imm: u32 = self.instr_imm_b(instr);
-        let pc: u32 = self.get_pc() as u32;
+    pub fn execute_branch(&mut self, instr: TInstr){
+        let func3: TInstr = self.instr_func3(instr);
+        let rs1: TInstr = self.instr_rs1(instr);
+        let rs2: TInstr = self.instr_rs2_shamt(instr);
+        let imm: TImm = self.instr_imm_b(instr) as i32 as i64 as u64; // sign-extend immediate value
+        let pc: TReg = self.get_pc();
         println!("[Instruction] opcode (0b1100011): func3: {func3} - rs1: {rs1} - rs2: {rs2} - imm: {imm} (- pc: {pc})");
         /*
         imm[12|10:5] rs2 rs1 000 imm[4:1|11] 1100011 BEQ 
@@ -232,47 +238,127 @@ impl BasicCpu {
         match func3 {
             0b000 => { // BEQ
                 if self.get_register(rs1 as usize) == self.get_register(rs2 as usize) {
-                    self.set_pc((pc as i64 + imm as i64) as TypeRegister);
+                    self.set_pc(pc.wrapping_add(imm));
                 } else {
-                    self.set_pc((pc + 4) as TypeRegister);
+                    self.set_pc(pc.wrapping_add(4));
                 }
             },
             0b001 => { // BNE
                 if self.get_register(rs1 as usize) != self.get_register(rs2 as usize) {
-                    self.set_pc((pc as i32 + imm as i32) as TypeRegister);
+                    self.set_pc(pc.wrapping_add(imm));
                 } else {
-                    self.set_pc((pc + 4) as TypeRegister);    
+                    self.set_pc(pc.wrapping_add(4));    
                 }
             },
             0b100 => { // BLT
                 if (self.get_register(rs1 as usize) as i32) < (self.get_register(rs2 as usize) as i32) {
-                    self.set_pc((pc as i32 + imm as i32) as TypeRegister);
+                    self.set_pc(pc.wrapping_add(imm));
                 } else {
-                    self.set_pc((pc + 4) as TypeRegister);    
+                    self.set_pc(pc.wrapping_add(4));    
                 }
             },
             0b101 => { // BGE
                 if (self.get_register(rs1 as usize) as i32) >= (self.get_register(rs2 as usize) as i32) {
-                    self.set_pc((pc as i32 + imm as i32) as TypeRegister);
+                    self.set_pc(pc.wrapping_add(imm));
                 } else {
-                    self.set_pc((pc + 4) as TypeRegister);    
+                    self.set_pc(pc.wrapping_add(4));    
                 }
             },
             0b110 => { // BLTU
                 if self.get_register(rs1 as usize) < self.get_register(rs2 as usize) {
-                    self.set_pc((pc as i32 + imm as i32) as TypeRegister);
+                    self.set_pc(pc.wrapping_add(imm));
                 } else {
-                    self.set_pc((pc + 4) as TypeRegister);
+                    self.set_pc(pc.wrapping_add(4));
                 }
             },
             0b111 => { // BGEU
                 if self.get_register(rs1 as usize) >= self.get_register(rs2 as usize) {
-                    self.set_pc((pc as i32 + imm as i32) as TypeRegister);
+                    self.set_pc(pc.wrapping_add(imm));
                 } else {
-                    self.set_pc((pc + 4) as TypeRegister);
+                    self.set_pc(pc.wrapping_add(4));
                 }
             },
             _ => println!("Function (B-Type) with code func3 {func3} not found")
         }   
+    }
+
+    pub fn execute_load(&mut self, instr: TInstr){
+        let func3: TInstr = self.instr_func3(instr);
+        let rd: TInstr = self.instr_rd(instr);
+        let rs1: TInstr = self.instr_rs1(instr);
+        let imm: TImm = self.instr_imm_i(instr) as i32 as i64 as u64; // sign-extend immediate value
+        println!("[Instruction] opcode (0b0000011): func3: {func3} - rd: {rd} - rs1: {rs1} - imm: {imm}");
+        /*
+        imm[11:0] rs1 000 rd 0000011 LB 
+        imm[11:0] rs1 001 rd 0000011 LH 
+        imm[11:0] rs1 010 rd 0000011 LW 
+        imm[11:0] rs1 100 rd 0000011 LBU 
+        imm[11:0] rs1 101 rd 0000011 LHU
+        */
+        let target_addr: usize = (self.get_register(rs1 as usize).wrapping_add(imm)) as usize;
+        if target_addr >= DRAM_BASE_ADDR && target_addr < (DRAM_BASE_ADDR + DRAM_SIZE) {
+            println!("Reading from DRAM at address {target_addr}");
+        } else {
+            println!("Attempt to read from invalid DRAM address {target_addr}");
+            return;
+        }
+        match func3 {
+            0b000 => {
+                let val = self.mem.dram_read(target_addr, 8); // LB
+                self.set_register(rd as usize, val as i8 as i64 as TReg);
+            },  
+            0b001 => {
+                let val = self.mem.dram_read(target_addr, 16); // LH
+                self.set_register(rd as usize, val as i16 as i64 as TReg);
+            },
+            0b010 => {
+                let val = self.mem.dram_read(target_addr, 32); // LW
+                self.set_register(rd as usize, val as i32 as i64 as TReg);
+            },
+            0b100 => {
+                let val = self.mem.dram_read(target_addr, 8); // LBU
+                self.set_register(rd as usize, val as u8 as TReg);
+            },
+            0b101 => {
+                let val = self.mem.dram_read(target_addr, 16); // LHU
+                self.set_register(rd as usize, val as u16 as TReg);
+            },
+            _ => println!("Function (Load-Type) with code func3 {func3} not found")
+        }
+    }
+
+    pub fn execute_store(&mut self, instr: TInstr){
+        let func3: TInstr = self.instr_func3(instr);
+        let rs1: TInstr = self.instr_rs1(instr);
+        let rs2: TInstr = self.instr_rs2_shamt(instr);
+        let imm: TImm = self.instr_imm_s(instr) as i32 as i64 as u64; // sign-extend immediate value
+        println!("[Instruction] opcode (0b0100011): func3: {func3} - rs1: {rs1} - rs2: {rs2} - imm: {imm}");
+        /*
+        imm[11:5] rs2 rs1 000 imm[4:0] 0100011 SB 
+        imm[11:5] rs2 rs1 001 imm[4:0] 0100011 SH 
+        imm[11:5] rs2 rs1 010 imm[4:0] 0100011 SW
+        */
+        let target_addr: usize = (self.get_register(rs1 as usize).wrapping_add(imm)) as usize;
+        if target_addr >= DRAM_BASE_ADDR && target_addr < (DRAM_BASE_ADDR + DRAM_SIZE) {
+            println!("Writing to DRAM at address {target_addr}");
+        } else {
+            println!("Attempt to write to invalid DRAM address {target_addr}");
+            return;
+        }
+        match func3 {
+            0b000 => {
+                let val = self.get_register(rs2 as usize) as i8 as u64; // SB
+                self.mem.dram_write(target_addr, 8, val);
+            },
+            0b001 => {
+                let val = self.get_register(rs2 as usize) as i16 as u64; // SH
+                self.mem.dram_write(target_addr, 16, val);
+            },
+            0b010 => {
+                let val = self.get_register(rs2 as usize) as i32 as u64; // SW
+                self.mem.dram_write(target_addr, 32, val);
+            },
+            _ => println!("Function (Store-Type) with code func3 {func3} not found")
+        }
     }
 }
