@@ -70,3 +70,6 @@
 - [ ] `j imm` - Jump
 - [ ] `ret` - Return from Function
 - [ ] `call symbol` - Call Function
+
+## Misc
+- [ ] `auipc rd, imm`, AUIPC - add upper immediate to pc
