@@ -71,6 +71,8 @@ impl BasicCpu {
 
         match opcode {
             0b0010011 => self.execute_imm(instr),
+            0b0110111 => self.execute_lui(instr),
+            0b0010111 => self.execute_auipc(instr),
             _ => println!("Instruction with opcode {opcode} not implemented yet"),
         }
     }
@@ -95,7 +97,7 @@ impl BasicCpu {
         (instr >> 15) & 0x07 // 0b0111 -> bits[15:19]
     }
 
-    pub fn instr_rs2(&self, instr: u32) -> u32 {
+    pub fn instr_rs2_shamt(&self, instr: u32) -> u32 {
         (instr >> 20) & 0x07 // 0b0111 -> bits[20:24]
     }
 
@@ -113,7 +115,7 @@ impl BasicCpu {
     }
 
     pub fn instr_imm_u(&self, instr: u32) -> u32 {
-        instr & 0xfffff999
+        instr & 0xfffff000 // NOTE: NOT bit shifted, lower 12 bits are already filled with zeros for LUI (& auipc) instr.
     }
 
     pub fn instr_imm_b(&self, instr: u32) -> u32 {
@@ -132,7 +134,9 @@ impl BasicCpu {
         let rd: u32 = self.instr_rd(instr);
         let rs1: u32 = self.instr_rs1(instr);
         let imm: u32 = self.instr_imm_i(instr);
-        println!("func3: {func3} - rd: {rd} - rs1: {rs1} - imm: {imm}");
+        let rs2_shamt: u32 = self.instr_rs2_shamt(instr);
+        let func7: u32 = self.instr_funct7(instr);
+        println!("[Instruction] opcode (0b0010011): func3: {func3} - rd: {rd} - rs1: {rs1} - imm: {imm}");
         /*
         imm[11:0] rs1 000 rd 0010011 ADDI 
         imm[11:0] rs1 010 rd 0010011 SLTI 
@@ -140,17 +144,41 @@ impl BasicCpu {
         imm[11:0] rs1 100 rd 0010011 XORI 
         imm[11:0] rs1 110 rd 0010011 ORI 
         imm[11:0] rs1 111 rd 0010011 ANDI
+        0000000 shamt rs1 001 rd 0010011 SLLI 
+        0000000 shamt rs1 101 rd 0010011 SRLI 
+        0100000 shamt rs1 101 rd 0010011 SRAI
         */
         match func3 {
             0b000 => self.set_register(rd as usize, self.get_register(rs1 as usize) + imm), // addi
+            0b001 => self.set_register(rd as usize, self.get_register(rs1 as usize) << rs2_shamt), // slli
             0b010 => self.set_register(rd as usize, if (self.get_register(rs1 as usize) as i32) < (imm as i32) { 1 } else { 0 }), // slti
             0b011 => self.set_register(rd as usize, if self.get_register(rs1 as usize) < imm { 1 } else { 0 }), // sltiu
             0b100 => self.set_register(rd as usize, self.get_register(rs1 as usize) ^ imm), // xori
+            0b101 => match func7 {
+                0b0000000 => self.set_register(rd as usize, self.get_register(rs1 as usize) >> rs2_shamt), // srli - SRLI is a logical right shift (zeros are shifted into the upper bits).
+                0b0100000 => self.set_register(rd as usize, ((self.get_register(rs1 as usize) as i32) >> rs2_shamt) as u32), // srai - SRAI is an arithmetic right shift (the original sign bit is copied into the vacated upper bits).
+                _ => println!("Function (I-Type) with code func3 {func3} AND func7 {func7} not found")
+            },
             0b110 => self.set_register(rd as usize, self.get_register(rs1 as usize) | imm), // ori
             0b111 => self.set_register(rd as usize, self.get_register(rs1 as usize) & imm), // andi
-            _ => println!("Function (I-Type) with code func3 {func3} not implemented yet")
+            _ => println!("Function (I-Type) with code func3 {func3} not found")
         }
-
     }
 
+    pub fn execute_lui(&mut self, instr: u32){
+        let rd: u32 = self.instr_rd(instr);
+        let imm: u32 = self.instr_imm_u(instr);
+        println!("[Instruction] opcode (0b0110111): rd: {rd} - imm: {imm}");
+        // imm[31:12] rd 0110111 LUI
+        self.set_register(rd as usize, imm);
+    }
+
+    pub fn execute_auipc(&mut self, instr: u32){
+        let rd: u32 = self.instr_rd(instr);
+        let imm: u32 = self.instr_imm_u(instr);
+        let pc: u32 = self.get_pc() as u32;
+        println!("[Instruction] opcode (0b0010111): rd: {rd} - imm: {imm} (- pc: {pc})");
+        // imm[31:12] rd 0010111 AUIPC
+        self.set_register(rd as usize, pc + imm)
+    }
 }
