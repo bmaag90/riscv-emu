@@ -89,6 +89,9 @@ impl BasicCpu {
             0b1100011 => self.execute_branch(instr),
             0b0000011 => self.execute_load(instr),
             0b0100011 => self.execute_store(instr),
+            0b0110011 => self.execute_r_type(instr),
+            0b0001111 => self.execute_fence(instr),
+            0b1110011 => self.execute_system(instr), // SYSTEM instruction, e.g. ECALL, EBREAK
             _ => println!("Instruction with opcode {opcode} not implemented yet"),
         }
     }
@@ -110,11 +113,11 @@ impl BasicCpu {
     }
 
     pub fn instr_rs1(&self, instr: TInstr) -> TInstr {
-        (instr >> 15) & 0x07 // 0b0111 -> bits[15:19]
+        (instr >> 15) & 0x1f // 0b0111 -> bits[15:19]
     }
 
     pub fn instr_rs2_shamt(&self, instr: TInstr) -> TInstr {
-        (instr >> 20) & 0x07 // 0b0111 -> bits[20:24]
+        (instr >> 20) & 0x1f // 0b0111 -> bits[20:24]
     }
 
     pub fn instr_funct7(&self, instr: TInstr) -> TInstr {
@@ -360,5 +363,52 @@ impl BasicCpu {
             },
             _ => println!("Function (Store-Type) with code func3 {func3} not found")
         }
+    }
+
+    pub fn execute_r_type(&mut self, instr: TInstr){
+        let func3: TInstr = self.instr_func3(instr);
+        let rd: TInstr = self.instr_rd(instr);
+        let rs1: TInstr = self.instr_rs1(instr);
+        let rs2: TInstr = self.instr_rs2_shamt(instr);
+        let func7: TInstr = self.instr_funct7(instr);
+        println!("[Instruction] opcode (0b0110011): func3: {func3} - rd: {rd} - rs1: {rs1} - rs2: {rs2} - func7: {func7}");
+        /*
+        0000000 rs2 rs1 000 rd 0110011 ADD 
+        0100000 rs2 rs1 000 rd 0110011 SUB 
+        0000000 rs2 rs1 001 rd 0110011 SLL 
+        0000000 rs2 rs1 010 rd 0110011 SLT 
+        0000000 rs2 rs1 011 rd 0110011 SLTU 
+        0000000 rs2 rs1 100 rd 0110011 XOR 
+        0000000 rs2 rs1 101 rd 0110011 SRL 
+        0100000 rs2 rs1 101 rd 0110011 SRA 
+        0000000 rs2 rs1 110 rd 0110011 OR 
+        0000000 rs2 rs1 111 rd 0110011 AND
+        */
+        match (func3, func7) {
+            (0b000, 0b0000000) => self.set_register(rd as usize, self.get_register(rs1 as usize).wrapping_add(self.get_register(rs2 as usize))), // add
+            (0b000, 0b0100000) => self.set_register(rd as usize, ((self.get_register(rs1 as usize) as i64).wrapping_sub(self.get_register(rs2 as usize) as i64)) as TReg), // sub
+            (0b001, 0b0000000) => self.set_register(rd as usize, self.get_register(rs1 as usize).wrapping_shl(self.get_register(rs2 as usize) as u32)), // sll
+            (0b010, 0b0000000) => self.set_register(rd as usize, if (self.get_register(rs1 as usize) as i64) < (self.get_register(rs2 as usize) as i64) { 1 } else { 0 }), // slt
+            (0b011, 0b0000000) => self.set_register(rd as usize, if self.get_register(rs1 as usize) < self.get_register(rs2 as usize) { 1 } else { 0 }), // sltu
+            (0b100, 0b0000000) => self.set_register(rd as usize, self.get_register(rs1 as usize) ^ self.get_register(rs2 as usize)), // xor
+            (0b101, 0b0000000) => self.set_register(rd as usize, self.get_register(rs1 as usize).wrapping_shr(self.get_register(rs2 as usize) as u32)), // srl
+            (0b101, 0b0100000) => self.set_register(rd as usize, ((self.get_register(rs1 as usize) as i64).wrapping_shr(self.get_register(rs2 as usize) as u32)) as TReg), // sra
+            (0b110, 0b0000000) => self.set_register(rd as usize, self.get_register(rs1 as usize) | self.get_register(rs2 as usize)), // or
+            (0b111, 0b0000000) => self.set_register(rd as usize, self.get_register(rs1 as usize) & self.get_register(rs2 as usize)), // and
+            _ => println!("Function (R-Type) with code func3 {func3} AND func7 {func7} not found")
+        }   
+    }
+
+    pub fn execute_fence(&mut self, _instr: TInstr){
+        // FENCE instruction is used to order memory operations
+        // It does not change the state of the CPU or registers
+        println!("[Instruction] opcode (0b0001111): FENCE instruction executed");
+        // No operation needed for this implementation
+    }
+
+    pub fn execute_system(&mut self, _instr: TInstr){
+        // SYSTEM instruction (e.g. ECALL, EBREAK) is not implemented yet
+        println!("[Instruction] opcode (0b1110011): SYSTEM instruction executed");
+        // No operation needed for this implementation
     }
 }

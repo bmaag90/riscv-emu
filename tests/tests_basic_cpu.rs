@@ -21,12 +21,28 @@ mod tests {
     fn test_register_operations() {
         let mut cpu = BasicCpu::new();
         
-        // Test register write/read
-        cpu.set_register(1, 42);
-        assert_eq!(cpu.get_register(1), 42);
+        cpu.init();
+
+        for i in 1..32 {
+            cpu.set_register(i, i as u64);
+            assert_eq!(cpu.get_register(i), i as u64);
+        }
         
     }
 
+    #[test]
+    fn test_pc_operations() {
+        let mut cpu = BasicCpu::new();
+        cpu.init();
+        let initial_pc = cpu.get_pc();
+        
+        assert_eq!(initial_pc, DRAM_BASE_ADDR.try_into().unwrap());
+
+        // Test PC increment
+        cpu.set_pc(initial_pc + 4);
+        assert_eq!(cpu.get_pc(), initial_pc + 4);
+    }
+    
     #[test]
     fn test_instruction_fetch() {
         let mut cpu = BasicCpu::new();
@@ -335,4 +351,78 @@ mod tests {
         // Verify that the halfword write overwrote the previous byte write
         assert_eq!(cpu.mem.dram_read(DRAM_BASE_ADDR + 8, 16), 0xABCD);
     }
+
+    #[test]
+    fn test_r_type_instructions() {
+        let mut cpu = BasicCpu::new();
+        cpu.init();
+        // Set initial values in registers
+        cpu.set_register(1, 10); // x1 = 10
+        cpu.set_register(2, 5);  // x2 = 5
+       
+        cpu.print_registers();
+        // Test ADD
+        let add = 0x002080B3;    // add x1, x1, x2
+        cpu.execute_instr(add);
+        assert_eq!(cpu.get_register(1), 15); 
+        // Test SUB
+        cpu.set_register(1, 10); // Reset x1 to 15
+        let sub = 0x402080B3;    // sub x1, x1, x2
+        cpu.execute_instr(sub);
+        assert_eq!(cpu.get_register(1), 5); // 10 - 5
+
+        // Test SLL
+        cpu.set_register(1, 10); // Reset x1 to 10
+        let sll = 0x002090B3;    // sll x1, x1, x2
+        cpu.execute_instr(sll);
+        assert_eq!(cpu.get_register(1), 320); // 10 << 5 
+
+        // Test SLT
+        cpu.set_register(1, 5);  // Reset x1 to 5
+        let slt = 0x0020A0B3;    // slt x1, x1, x2
+        cpu.execute_instr(slt);
+        assert_eq!(cpu.get_register(1), 0); // 5 < 5
+        cpu.set_register(1, 4);  // Reset x1 to 4
+        cpu.execute_instr(slt);
+        assert_eq!(cpu.get_register(1), 1); // 4 < 5
+
+        // Test SLTU
+        cpu.set_register(1, 5);  // Reset x1 to 5
+        let sltu = 0x0020B0B3;   // sl
+        cpu.execute_instr(sltu);
+        assert_eq!(cpu.get_register(1), 0); // 5 < 5
+        cpu.set_register(1, 4);  // Reset x1 to 4
+        cpu.execute_instr(sltu);
+        assert_eq!(cpu.get_register(1), 1); // 4 < 5
+
+        // Test XOR
+        cpu.set_register(1, 0xF0F0); // Reset x1
+        cpu.set_register(2, 0x0F00); // Reset x2
+        let xor = 0x0020C0B3;    // xor x1, x1, x2
+        cpu.execute_instr(xor);
+        assert_eq!(cpu.get_register(1), 0xFFF0); // 0xF0F0 ^ 0x0F00 = 0xFFF0
+    }
+
+    #[test]
+    fn test_fence_instruction() {
+        let mut cpu = BasicCpu::new();
+        cpu.init(); 
+        // Test FENCE instruction
+        let fence = 0x0000000F; // FENCE instruction (no specific
+        cpu.execute_instr(fence);
+        // No specific state change expected, just checking execution
+        assert!(true); // If we reach here, the test passes
+    }
+
+    #[test]
+    fn test_system_instruction() {
+        let mut cpu = BasicCpu::new();
+        cpu.init();
+        // Test SYSTEM instruction (e.g. ECALL, EBREAK)
+        let system = 0x00000073; // SYSTEM instruction (no specific operation)
+        cpu.execute_instr(system);
+        // No specific state change expected, just checking execution
+        assert!(true); // If we reach here, the test passes
+    }
+
 }

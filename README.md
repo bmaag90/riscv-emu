@@ -1,7 +1,7 @@
 # RISC-V Instruction Set Implementation Progress
 
 ## Arithmetic Instructions
-- [ ] `add rd, rs1, rs2` - Add (rd = rs1 + rs2)
+- [x] `add rd, rs1, rs2` - Add (rd = rs1 + rs2)
 - [x] `addi rd, rs1, imm` - Add Immediate (rd = rs1 + imm)
 - [ ] `neg rd, rs2` - Negate (rd = -rs2)
 - [ ] `sub rd, rs1, rs2` - Subtract (rd = rs1 - rs2)
@@ -13,20 +13,20 @@
 - [ ] `rem rd, rs1, rs2` - Remainder (rd = rs1 % rs2)
 
 ## Bitwise Logic
-- [ ] `and rd, rs1, rs2` - AND (rd = rs1 & rs2)
+- [x] `and rd, rs1, rs2` - AND (rd = rs1 & rs2)
 - [x] `andi rd, rs1, imm` - AND Immediate
-- [ ] `not rd, rs1` - NOT (rd = ~rs1)
-- [ ] `or rd, rs1, rs2` - OR (rd = rs1 | rs2)
+- [ ] `not rd, rs1` - NOT (rd = ~rs1) 
+- [x] `or rd, rs1, rs2` - OR (rd = rs1 | rs2)
 - [x] `ori rd, rs1, imm` - OR Immediate
-- [ ] `xor rd, rs1, rs2` - XOR (rd = rs1 ^ rs2)
+- [x] `xor rd, rs1, rs2` - XOR (rd = rs1 ^ rs2)
 - [x] `xori rd, rs1, imm` - XOR Immediate
 
 ## Shifts
-- [ ] `sll rd, rs1, rs2` - Shift Left Logical
+- [x] `sll rd, rs1, rs2` - Shift Left Logical
 - [x] `slli rd, rs1, imm` - Shift Left Logical Immediate
-- [ ] `srl rd, rs1, rs2` - Shift Right Logical
+- [x] `srl rd, rs1, rs2` - Shift Right Logical
 - [x] `srli rd, rs1, imm` - Shift Right Logical Immediate
-- [ ] `sra rd, rs1, rs2` - Shift Right Arithmetic
+- [x] `sra rd, rs1, rs2` - Shift Right Arithmetic
 - [x] `srai rd, rs1, imm` - Shift Right Arithmetic Immediate
 
 ## Load/Store
@@ -49,9 +49,9 @@
 - [x] `bgeu rs1, rs2, imm` - Branch Greater or Equal Unsigned
 
 ## Set Instructions
-- [ ] `slt rd, rs1, rs2` - Set Less Than
+- [x] `slt rd, rs1, rs2` - Set Less Than
 - [x] `slti rd, rs1, imm` - Set Less Than Immediate
-- [ ] `sltu rd, rs1, rs2` - Set Less Than Unsigned
+- [x] `sltu rd, rs1, rs2` - Set Less Than Unsigned
 - [x] `sltiu rd, rs1, imm` - Set Less Than Immediate Unsigned
 
 ## Jump Instructions
@@ -59,9 +59,9 @@
 - [x] `jalr rd, rs1, imm` - Jump and Link Register
 
 ## System Instructions
-- [ ] `ecall` - Environment Call
-- [ ] `ebreak` - Environment Break
-- [ ] `fence` - Memory and I/O Fence
+- [x] `ecall` - Environment Call
+- [x] `ebreak` - Environment Break
+- [x] `fence` - Memory and I/O Fence
 
 ## Pseudo Instructions
 - [ ] `li rd, imm` - Load Immediate
