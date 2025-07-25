@@ -1,10 +1,18 @@
 use riscv_emu::memory::dram::{DramMemory, DRAM_SIZE, DRAM_BASE_ADDR};
+use log::info;
+use env_logger;
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn test_init() {
+        let _ = env_logger::builder().filter_level(log::LevelFilter::Trace).is_test(true).try_init();
+    }
+
     #[test]
     fn test_dram_write_read_byte() {
+        test_init();
         let mut dram = DramMemory {
             mem: vec![0; DRAM_SIZE]
         };
@@ -17,6 +25,7 @@ mod tests {
 
     #[test]
     fn test_dram_write_read_word() {
+        test_init();
         let mut dram = DramMemory {
             mem: vec![0; DRAM_SIZE]
         };
@@ -29,6 +38,7 @@ mod tests {
 
     #[test]
     fn test_dram_multiple_addresses() {
+        test_init();
         let mut dram = DramMemory {
             mem: vec![0; DRAM_SIZE]
         };
@@ -47,6 +57,7 @@ mod tests {
 
     #[test]
     fn test_dram_byte_alignment() {
+        test_init();
         let mut dram = DramMemory {
             mem: vec![0; DRAM_SIZE]
         };
@@ -69,6 +80,7 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_invalid_address() {
+        test_init();
         let dram = DramMemory {
             mem: vec![0; DRAM_SIZE]
         };

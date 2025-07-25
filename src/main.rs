@@ -1,7 +1,7 @@
 use std::fs::File;
-use std::io;
 use std::io::prelude::*;
 use std::env;
+use log::{info, warn};
 
 mod memory {
     pub mod dram;
@@ -31,32 +31,32 @@ fn main() {
         cpu.mem.dram_write(dram::DRAM_BASE_ADDR + i, 8, (*byte).into());
     }
 
-    println!("Loaded binary into DRAM memory.");
+    info!("Loaded binary into DRAM memory.");
     
-    println!("Initializing CPU...");
+    info!("Initializing CPU...");
     cpu.init();
-    println!("Current registers:");
+    info!("Current registers:");
     cpu.print_registers();
-    println!("Current PC: {:#x}", cpu.get_pc());
-    println!("Starting execution...");
+    info!("Current PC: {:#x}", cpu.get_pc());
+    info!("Starting execution...");
     loop {
 
         let current_instruction = cpu.fetch_instr();
         let current_pc = cpu.get_pc();
 
-        println!("PC: {:#x}, Instruction: {:#x}", current_pc, current_instruction);
+        info!("PC: {:#x}, Instruction: {:#x}", current_pc, current_instruction);
 
         cpu.execute_instr(current_instruction); 
 
         cpu.set_pc(cpu.get_pc() + 4);
 
         if cpu.get_pc() >= (dram::DRAM_BASE_ADDR + dram::DRAM_SIZE) as u64 {
-            println!("Reached end of DRAM memory.");
+            warn!("Reached end of DRAM memory.");
             break;
         }
 
         if cpu.get_pc() == 0 {
-            println!("Program terminated.");
+            info!("Program terminated.");
             break;
         }
     }

@@ -1,12 +1,19 @@
 use riscv_emu::cpu::basic_cpu::BasicCpu;
 use riscv_emu::memory::dram::DRAM_BASE_ADDR;
+use log::info;
+use env_logger;
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    fn test_init() {
+        let _ = env_logger::builder().is_test(true).try_init();
+    }
+
     #[test]
     fn test_cpu_initialization() {
+        test_init();
         let mut cpu = BasicCpu::new();
         cpu.init();
         
@@ -19,6 +26,7 @@ mod tests {
 
     #[test]
     fn test_register_operations() {
+        test_init();
         let mut cpu = BasicCpu::new();
         
         cpu.init();
@@ -32,6 +40,7 @@ mod tests {
 
     #[test]
     fn test_pc_operations() {
+        test_init();
         let mut cpu = BasicCpu::new();
         cpu.init();
         let initial_pc = cpu.get_pc();
@@ -45,6 +54,7 @@ mod tests {
     
     #[test]
     fn test_instruction_fetch() {
+        test_init();
         let mut cpu = BasicCpu::new();
         cpu.init();
         
@@ -59,6 +69,7 @@ mod tests {
 
     #[test]
     fn test_instruction_decode() {
+        test_init();
         let cpu = BasicCpu::new();
         
         // Test instruction: addi x2, x1, 5
@@ -74,6 +85,7 @@ mod tests {
 
     #[test]
     fn test_addi_execution() {
+        test_init();
         let mut cpu = BasicCpu::new();
         cpu.init();
         
@@ -91,6 +103,7 @@ mod tests {
 
     #[test]
     fn test_shift_instructions() {
+        test_init();
         let mut cpu = BasicCpu::new();
         cpu.init();
 
@@ -115,6 +128,7 @@ mod tests {
 
     #[test]
     fn test_set_instructions() {
+        test_init();
         let mut cpu = BasicCpu::new();
         cpu.init();
 
@@ -133,6 +147,7 @@ mod tests {
 
     #[test]
     fn test_logical_instructions() {
+        test_init();
         let mut cpu = BasicCpu::new();
         cpu.init();
 
@@ -157,6 +172,7 @@ mod tests {
 
     #[test]
     fn test_lui_instruction() {
+        test_init();
         let mut cpu = BasicCpu::new();
         cpu.init();
 
@@ -168,6 +184,7 @@ mod tests {
 
     #[test]
     fn test_auipc_instruction() {     
+        test_init();
         let mut cpu = BasicCpu::new();
         cpu.init();
         // Test AUIPC (Add Upper Immediate to PC)
@@ -178,6 +195,7 @@ mod tests {
     
     #[test]
     fn test_jal_instruction() {
+        test_init();
         let mut cpu = BasicCpu::new();
         cpu.init();
         let initial_pc = cpu.get_pc();
@@ -194,6 +212,7 @@ mod tests {
 
     #[test]
     fn test_jalr_instruction() {
+        test_init();
         let mut cpu = BasicCpu::new();
         cpu.init();
         let initial_pc = cpu.get_pc();
@@ -213,6 +232,7 @@ mod tests {
 
     #[test]
     fn test_branch_instructions() {
+        test_init();
         let mut cpu = BasicCpu::new();
         cpu.init();
         let initial_pc = cpu.get_pc();
@@ -274,6 +294,7 @@ mod tests {
 
     #[test]
     fn test_load_instructions() {
+        test_init();
         let mut cpu = BasicCpu::new();
         cpu.init();
         
@@ -315,6 +336,7 @@ mod tests {
 
     #[test]
     fn test_store_instructions() {
+        test_init();
         let mut cpu = BasicCpu::new();
         cpu.init();
 
@@ -354,6 +376,7 @@ mod tests {
 
     #[test]
     fn test_r_type_instructions() {
+        test_init();
         let mut cpu = BasicCpu::new();
         cpu.init();
         // Set initial values in registers
@@ -405,6 +428,7 @@ mod tests {
 
     #[test]
     fn test_fence_instruction() {
+        test_init();
         let mut cpu = BasicCpu::new();
         cpu.init(); 
         // Test FENCE instruction
@@ -416,6 +440,7 @@ mod tests {
 
     #[test]
     fn test_system_instruction() {
+        test_init();
         let mut cpu = BasicCpu::new();
         cpu.init();
         // Test SYSTEM instruction (e.g. ECALL, EBREAK)
@@ -427,6 +452,7 @@ mod tests {
 
     #[test]
     fn test_csr_instructions() {
+        test_init();
         let mut cpu = BasicCpu::new();
         cpu.init();
 
