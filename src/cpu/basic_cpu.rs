@@ -1,15 +1,17 @@
 use crate::memory::dram::{DRAM_SIZE, DRAM_BASE_ADDR, DramMemory};
 
 pub const REGISTERS_COUNT: usize = 32;
+pub const CSR_COUNT: usize = 4096; // Maximum number of CSRs in RV64
 // RV64i
 pub type TReg = u64;
 pub type TInstr = u32;
 pub type TImm = u64; // immediate value
 
 pub struct BasicCpu {
-    registers : [TReg; REGISTERS_COUNT],
-    pc : TReg,
-    pub mem : DramMemory
+    registers : [TReg; REGISTERS_COUNT], // General-purpose registers
+    pc : TReg, // Program Counter
+    pub mem : DramMemory, // Memory interface
+    csr : [TReg; CSR_COUNT], // CSR registers
 }
 
 impl BasicCpu {
@@ -20,7 +22,8 @@ impl BasicCpu {
             pc: 0x0,
             mem: DramMemory {
                 mem: vec![0; DRAM_SIZE]
-            }
+            },
+            csr: [0; CSR_COUNT] 
         }
     }   
 
@@ -44,7 +47,7 @@ impl BasicCpu {
     }
 
     pub fn get_register(&self, idx: usize) -> TReg{
-        if idx > 32 {
+        if idx > REGISTERS_COUNT {
             println!("Invalid register index {idx}");
             return 0
         }
@@ -52,7 +55,7 @@ impl BasicCpu {
     }
 
     pub fn set_register(&mut self, idx: usize, value: TReg) {
-        if idx > 32 {
+        if idx > REGISTERS_COUNT {
             println!("Invalid register index {idx}");
             return 
         }
@@ -67,6 +70,23 @@ impl BasicCpu {
     pub fn set_pc(&mut self, pc: TReg) {
         println!("Setting program counter to {pc}");
         self.pc = pc;
+    }
+
+    pub fn get_csr(&self, idx: usize) -> TReg {
+        if idx >= CSR_COUNT {
+            println!("Invalid CSR index {idx}");
+            return 0;
+        }
+        self.csr[idx]
+    }
+
+    pub fn set_csr(&mut self, idx: usize, value: TReg) {
+        if idx >= CSR_COUNT {
+            println!("Invalid CSR index {idx}");
+            return;
+        }
+        println!("Setting CSR {idx} to {value}");
+        self.csr[idx] = value;
     }
     //
     // Processing
@@ -91,8 +111,8 @@ impl BasicCpu {
             0b0100011 => self.execute_store(instr),
             0b0110011 => self.execute_r_type(instr),
             0b0001111 => self.execute_fence(instr),
-            0b1110011 => self.execute_system(instr), // SYSTEM instruction, e.g. ECALL, EBREAK
-            _ => println!("Instruction with opcode {opcode} not implemented yet"),
+            0b1110011 => self.execute_system_csr(instr), // SYSTEM instruction, e.g. ECALL, EBREAK
+            _ => panic!("Instruction with opcode {opcode} not implemented yet"),
         }
     }
     //
@@ -145,6 +165,10 @@ impl BasicCpu {
         ((instr & 0x80000000) >> 11) | (instr & 0xff000) | ((instr >> 9) & 0x800) | ((instr >> 20) & 0x7fe)
     }
 
+    pub fn instr_csr_addr(&self, instr: TInstr) -> TInstr {
+        // CSR address is in bits [20:31] of the instruction
+        (instr >> 20) & 0xfff // bits[20:31]
+    }
     //
     // Execute instructions
     //
@@ -176,11 +200,11 @@ impl BasicCpu {
             0b101 => match func7 {
                 0b0000000 => self.set_register(rd as usize, self.get_register(rs1 as usize).wrapping_shr(rs2_shamt)), // srli - SRLI is a logical right shift (zeros are shifted into the upper bits).
                 0b0100000 => self.set_register(rd as usize, ((self.get_register(rs1 as usize) as i64).wrapping_shr(rs2_shamt)) as TReg), // srai - SRAI is an arithmetic right shift (the original sign bit is copied into the vacated upper bits).
-                _ => println!("Function (I-Type) with code func3 {func3} AND func7 {func7} not found")
+                _ => panic!("Function (I-Type) with code func3 {func3} AND func7 {func7} not found")
             },
             0b110 => self.set_register(rd as usize, self.get_register(rs1 as usize) | imm), // ori
             0b111 => self.set_register(rd as usize, self.get_register(rs1 as usize) & imm), // andi
-            _ => println!("Function (I-Type) with code func3 {func3} not found")
+            _ => panic!("Function (I-Type) with code func3 {func3} not found")
         }
     }
 
@@ -406,9 +430,103 @@ impl BasicCpu {
         // No operation needed for this implementation
     }
 
-    pub fn execute_system(&mut self, _instr: TInstr){
-        // SYSTEM instruction (e.g. ECALL, EBREAK) is not implemented yet
-        println!("[Instruction] opcode (0b1110011): SYSTEM instruction executed");
-        // No operation needed for this implementation
+    pub fn execute_system_csr(&mut self, instr: TInstr){
+        let func3: TInstr = self.instr_func3(instr);
+        let rd: TInstr = self.instr_rd(instr);
+        let rs1: TInstr = self.instr_rs1(instr);
+        let csr_addr: TInstr = self.instr_csr_addr(instr);
+        match func3 {
+            0b000 => println!("[Instruction] opcode (0b1110011): ECALL/EBREAK"), // ECALL or EBREAK instruction
+            0b001 => {
+                /*  
+                CSRRW - Read CSR and write to register
+                CSRRW reads the old value of the CSR, zero-extends the value to XLEN bits, then writes it to integer register rd. 
+                The initial value in rs1 is written to the CSR
+                */
+                let csr_value = self.get_csr(csr_addr as usize);
+                self.set_register(rd as usize, csr_value);
+                if rs1 != 0 {
+                    // Write value from register to CSR
+                    self.set_csr(csr_addr as usize, self.get_register(rs1 as usize));
+                }
+                println!("[Instruction] opcode (0b1110011): CSRRW - CSR: {csr_addr} - rd: {rd} - rs1: {rs1}");
+            },
+            0b010 => {
+                /*
+                CSRRS - Read CSR and set bits from register
+                reads the value of the CSR, zeroextends the value to XLEN bits, and writes it to integer register rd. 
+                The initial value in integer register rs1 is treated as a bit mask that specifies bit positions to be set in the CSR.
+                Any bit that is high in rs1 will cause the corresponding bit to be set in the CSR, if that CSR bit is writable.
+                 */
+                let csr_value = self.get_csr(csr_addr as usize);
+                self.set_register(rd as usize, csr_value);
+                if rs1 != 0 {
+                    // Set bits in CSR from register
+                    self.set_csr(csr_addr as usize, csr_value | self.get_register(rs1 as usize));
+                }
+                println!("[Instruction] opcode (0b1110011): CSRRS - CSR: {csr_addr} - rd: {rd} - rs1: {rs1}");
+            },
+            0b011 => {
+                /*
+                CSRRC - Read CSR and clear bits from register
+                reads the value of the CSR, zeroextends the value to XLEN bits, and writes it to integer register rd. 
+                The initial value in integer register rs1 is treated as a bit mask that specifies bit positions to be cleared in the CSR. 
+                Any bit that is high in rs1 will cause the corresponding bit to be cleared in the CSR, if that CSR bit is writable
+                 */
+                let csr_value = self.get_csr(csr_addr as usize);
+                self.set_register(rd as usize, csr_value);
+                if rs1 != 0 {
+                    // Clear bits in CSR from register
+                    self.set_csr(csr_addr as usize, csr_value & !self.get_register(rs1 as usize));
+                }
+                println!("[Instruction] opcode (0b1110011): CSRRC - CSR: {csr_addr} - rd: {rd} - rs1: {rs1}");
+            },
+            0b101 => {
+                /*
+                CSRRWI - Read CSR and write immediate value
+                CSRRWI reads the old value of the CSR, zero-extends the value to XLEN bits, then writes it to integer register rd. 
+                The immediate value is written to the CSR.
+                 */
+                let csr_value = self.get_csr(csr_addr as usize);
+                if rd != 0 {
+                    self.set_register(rd as usize, csr_value);
+                    self.set_csr(csr_addr as usize, rs1 as TReg); // rs1 is used as immediate value
+                } else {
+                    println!("Warning: CSRRWI instruction with rd = 0, no value will be stored in register");
+                }
+                println!("[Instruction] opcode (0b1110011): CSRRWI - CSR: {csr_addr} - rd: {rd} - imm: {rs1}");
+            },
+            0b110 => {
+                /*                
+                CSRRSI - Read CSR and set bits from immediate value
+                reads the value of the CSR, zero-extends the value to XLEN bits, and writes it to integer register rd.
+                The immediate value is treated as a bit mask that specifies bit positions to be set in the CSR.
+                Any bit that is high in the immediate value will cause the corresponding bit to be set in the CSR, if that CSR bit is writable.
+                */
+                let csr_value = self.get_csr(csr_addr as usize);
+                self.set_register(rd as usize, csr_value);
+                if rs1 != 0 {
+                    // Set bits in CSR from immediate value
+                    self.set_csr(csr_addr as usize, csr_value | rs1 as TReg);
+                }
+                println!("[Instruction] opcode (0b1110011): CSRRSI - CSR: {csr_addr} - rd: {rd} - imm: {rs1}");
+            },
+            0b111 => {
+                /*                
+                CSRRCI - Read CSR and clear bits from immediate value
+                reads the value of the CSR, zero-extends the value to XLEN bits, and writes it to integer register rd.  
+                The immediate value is treated as a bit mask that specifies bit positions to be cleared in the CSR.
+                Any bit that is high in the immediate value will cause the corresponding bit to be cleared in the CSR, if that CSR bit is writable.
+                */
+                let csr_value = self.get_csr(csr_addr as usize);
+                self.set_register(rd as usize, csr_value);
+                if rs1 != 0 {
+                    // Clear bits in CSR from immediate value
+                    self.set_csr(csr_addr as usize, csr_value & !(rs1 as TReg));
+                }
+                println!("[Instruction] opcode (0b1110011): CSRRCI - CSR: {csr_addr} - rd: {rd} - imm: {rs1}");
+            },
+            _ => println!("Function (System-CSR) with code func3 {func3} not found")
+        }
     }
 }

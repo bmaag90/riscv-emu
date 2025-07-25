@@ -425,4 +425,59 @@ mod tests {
         assert!(true); // If we reach here, the test passes
     }
 
+    #[test]
+    fn test_csr_instructions() {
+        let mut cpu = BasicCpu::new();
+        cpu.init();
+
+        // Test CSRRW (CSR Read and Write)
+        let csr_addr = 0x305;  // mtvec CSR address
+        cpu.set_register(18, 0xAAAA_AAAA);
+        let csrrw = 0x30591573;  // csrrw x10 (rd), x18 (rs)
+        cpu.execute_instr(csrrw);
+        assert_eq!(cpu.get_csr(csr_addr), 0xAAAA_AAAA);
+        assert_eq!(cpu.get_register(10), 0); // Should read old value (0) into x10
+
+        // Test CSRRS (CSR Read and Set)
+        cpu.set_register(18, 0x5555_5555);
+        let csrrs = 0x30592573;  // csrrs x10 (rd), x18 (rs)
+        cpu.execute_instr(csrrs);
+        assert_eq!(cpu.get_csr(csr_addr), 0xAAAA_AAAA | 0x5555_5555);
+        assert_eq!(cpu.get_register(10), 0xAAAA_AAAA); // Should read old value into x10
+
+        // Test CSRRC (CSR Read and Clear)
+        cpu.set_register(18, 0xF0F0_F0F0);
+        let csrrc = 0x30593573;  // csrrc x10 (rd), x18 (rs)
+        cpu.execute_instr(csrrc);
+        // Should read old value into x3 and clear bits
+        assert_eq!(cpu.get_csr(csr_addr), 0x0F0F_0F0F); // 0xAAAA_AAAA | 0x5555_5555 = 0xFFFF_FFFF --> 0xFFFF_FFFF & ~0xF0F0_F0F0
+        assert_eq!(cpu.get_register(10), 0xAAAA_AAAA | 0x5555_5555); // Should read old value into x10
+
+        // Test CSRRWI (CSR Read and Write Immediate)
+        let csrrwi = 0x30595573;  // csrrwi x10 (rd), 18 (rs = uimm)
+        cpu.execute_instr(csrrwi);
+        assert_eq!(cpu.get_csr(csr_addr), 18); // Should write immediate value 18 to CSR
+        assert_eq!(cpu.get_register(10), 0x0F0F_0F0F); // Should read old value into x10
+
+        // Test CSRRSI (CSR Read and Set Immediate)
+        let csrrsi = 0x305A6573;  // csrrsi x10 (rd), 20 (rs = uimm)
+        cpu.execute_instr(csrrsi);
+        // Should read old value into x2 and set immediate bits
+        assert_eq!(cpu.get_csr(csr_addr), 22); // 18 | 20 = 22
+        assert_eq!(cpu.get_register(10), 18); 
+
+        // Test CSRRCI (CSR Read and Clear Immediate)
+        let csrrci = 0x305C7573;  // csrrci x10 (rd), 24 (rs = uimm)
+        cpu.execute_instr(csrrci);
+        // Should read old value into x3 and clear immediate bits
+        assert_eq!(cpu.get_register(10), 22);
+        assert_eq!(cpu.get_csr(csr_addr), 22 & !24);  // 22 & ~24 
+
+        // Test CSR read-only behavior with x0
+        cpu.set_csr(csr_addr, 0xDEAD_BEEF);
+        let csrrw_x0 = 0x30501573;  // csrrw x10, x0
+        cpu.execute_instr(csrrw_x0);
+        // Should not modify CSR when rs1 = x0
+        assert_eq!(cpu.get_csr(csr_addr), 0xDEAD_BEEF);
+    }
 }
