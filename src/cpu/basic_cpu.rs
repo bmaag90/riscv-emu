@@ -113,6 +113,7 @@ impl BasicCpu {
             0b0110011 => self.execute_r_type(instr),
             0b0001111 => self.execute_fence(instr),
             0b1110011 => self.execute_system_csr(instr), // SYSTEM instruction, e.g. ECALL, EBREAK
+            0b0111011 => self.execute_rv64i_extensions(instr),
             _ => return Err("Instruction with opcode {opcode} not implemented yet".to_string()),
         }
         return Ok(());
@@ -181,7 +182,7 @@ impl BasicCpu {
         let imm: TImm = self.instr_imm_i(instr); // sign-extend immediate value
         let rs2_shamt: TInstr = self.instr_rs2_shamt(instr);
         let func7: TInstr = self.instr_funct7(instr);
-        info!("[Instruction] opcode (0b0010011): func3: {func3} - rd: {rd} - rs1: {rs1} - imm: {imm}");
+        info!("[execute_imm] opcode (0b0010011): func3: {func3} - rd: {rd} - rs1: {rs1} - imm: {imm}");
         /*
         imm[11:0] rs1 000 rd 0010011 ADDI 
         imm[11:0] rs1 010 rd 0010011 SLTI 
@@ -213,7 +214,7 @@ impl BasicCpu {
     pub fn execute_lui(&mut self, instr: TInstr){
         let rd: TInstr = self.instr_rd(instr);
         let imm: TImm = self.instr_imm_u(instr); // sign-extend immediate value
-        info!("[Instruction] opcode (0b0110111): rd: {rd} - imm: {imm}");
+        info!("[execute_lui] opcode (0b0110111): rd: {rd} - imm: {imm}");
         // imm[31:12] rd 0110111 LUI
         self.set_register(rd as usize, imm);
     }
@@ -222,7 +223,7 @@ impl BasicCpu {
         let rd: TInstr = self.instr_rd(instr);
         let imm: TImm = self.instr_imm_u(instr); // sign-extend immediate value
         let pc: TReg = self.get_pc();
-        info!("[Instruction] opcode (0b0010111): rd: {rd} - imm: {imm} (- pc: {pc})");
+        info!("[execute_auipc] opcode (0b0010111): rd: {rd} - imm: {imm} (- pc: {pc})");
         // imm[31:12] rd 0010111 AUIPC
         self.set_register(rd as usize, pc.wrapping_add(imm)); // add immediate value to current pc
     }
@@ -231,7 +232,7 @@ impl BasicCpu {
         let rd: TInstr = self.instr_rd(instr);
         let imm: TImm = self.instr_imm_j(instr); // sign-extend immediate value
         let pc: TReg = self.get_pc();
-        info!("[Instruction] opcode (0b1101111): rd: {rd} - imm: {imm} (- pc: {pc})");
+        info!("[execute_jal] opcode (0b1101111): rd: {rd} - imm: {imm} (- pc: {pc})");
         // imm[20] imm[10:1] imm[11] imm[19:12] rd 1101111 JAL
         self.set_register(rd as usize, pc.wrapping_add(4)); // store return address
         let new_pc: TReg = pc.wrapping_add(imm); // calculate new pc
@@ -243,7 +244,7 @@ impl BasicCpu {
         let rs1: TInstr = self.instr_rs1(instr);
         let imm: TImm = self.instr_imm_i(instr); // sign-extend immediate value;
         let pc: TReg = self.get_pc();
-        info!("[Instruction] opcode (0b1100111): rd: {rd} - rs1: {rs1} - imm: {imm} (- pc: {pc})");
+        info!("[execute_jalr] opcode (0b1100111): rd: {rd} - rs1: {rs1} - imm: {imm} (- pc: {pc})");
         // imm[11:0] rs1 000 rd 1100111 JALR
         self.set_register(rd as usize, pc.wrapping_add(4)); // store return address
         self.set_pc(self.get_register(rs1 as usize).wrapping_add(imm) as TReg & !1); // jump to target address (clear LSB)
@@ -255,7 +256,7 @@ impl BasicCpu {
         let rs2: TInstr = self.instr_rs2_shamt(instr);
         let imm: TImm = self.instr_imm_b(instr); // sign-extend immediate value
         let pc: TReg = self.get_pc();
-        info!("[Instruction] opcode (0b1100011): func3: {func3} - rs1: {rs1} - rs2: {rs2} - imm: {imm} (- pc: {pc})");
+        info!("[execute_branch] opcode (0b1100011): func3: {func3} - rs1: {rs1} - rs2: {rs2} - imm: {imm} (- pc: {pc})");
         /*
         imm[12|10:5] rs2 rs1 000 imm[4:1|11] 1100011 BEQ 
         imm[12|10:5] rs2 rs1 001 imm[4:1|11] 1100011 BNE 
@@ -316,7 +317,7 @@ impl BasicCpu {
         let rd: TInstr = self.instr_rd(instr);
         let rs1: TInstr = self.instr_rs1(instr);
         let imm: TImm = self.instr_imm_i(instr); // sign-extend immediate value
-        info!("[Instruction] opcode (0b0000011): func3: {func3} - rd: {rd} - rs1: {rs1} - imm: {imm}");
+        info!("[execute_load] opcode (0b0000011): func3: {func3} - rd: {rd} - rs1: {rs1} - imm: {imm}");
         /*
         imm[11:0] rs1 000 rd 0000011 LB 
         imm[11:0] rs1 001 rd 0000011 LH 
@@ -377,7 +378,7 @@ impl BasicCpu {
         let rs1: TInstr = self.instr_rs1(instr);
         let rs2: TInstr = self.instr_rs2_shamt(instr);
         let imm: TImm = self.instr_imm_s(instr); // sign-extend immediate value
-        info!("[Instruction] opcode (0b0100011): func3: {func3} - rs1: {rs1} - rs2: {rs2} - imm: {imm}");
+        info!("[execute_store] opcode (0b0100011): func3: {func3} - rs1: {rs1} - rs2: {rs2} - imm: {imm}");
         /*
         imm[11:5] rs2 rs1 000 imm[4:0] 0100011 SB 
         imm[11:5] rs2 rs1 001 imm[4:0] 0100011 SH 
@@ -419,7 +420,7 @@ impl BasicCpu {
         let rs1: TInstr = self.instr_rs1(instr);
         let rs2: TInstr = self.instr_rs2_shamt(instr);
         let func7: TInstr = self.instr_funct7(instr);
-        info!("[Instruction] opcode (0b0110011): func3: {func3} - rd: {rd} - rs1: {rs1} - rs2: {rs2} - func7: {func7}");
+        info!("[execute_r_type] opcode (0b0110011): func3: {func3} - rd: {rd} - rs1: {rs1} - rs2: {rs2} - func7: {func7}");
         /*
         0000000 rs2 rs1 000 rd 0110011 ADD 
         0100000 rs2 rs1 000 rd 0110011 SUB 
@@ -450,7 +451,7 @@ impl BasicCpu {
     pub fn execute_fence(&mut self, _instr: TInstr){
         // FENCE instruction is used to order memory operations
         // It does not change the state of the CPU or registers
-        info!("[Instruction] opcode (0b0001111): FENCE instruction executed");
+        info!("[execute_fence] opcode (0b0001111): FENCE instruction executed");
         // No operation needed for this implementation
     }
 
@@ -460,7 +461,7 @@ impl BasicCpu {
         let rs1: TInstr = self.instr_rs1(instr);
         let csr_addr: TInstr = self.instr_csr_addr(instr);
         match func3 {
-            0b000 => info!("[Instruction] opcode (0b1110011): ECALL/EBREAK"), // ECALL or EBREAK instruction
+            0b000 => info!("[execute_system_csr] opcode (0b1110011): ECALL/EBREAK"), // ECALL or EBREAK instruction
             0b001 => {
                 /*  
                 CSRRW - Read CSR and write to register
@@ -473,7 +474,7 @@ impl BasicCpu {
                     // Write value from register to CSR
                     self.set_csr(csr_addr as usize, self.get_register(rs1 as usize));
                 }
-                info!("[Instruction] opcode (0b1110011): CSRRW - CSR: {csr_addr} - rd: {rd} - rs1: {rs1}");
+                info!("[execute_system_csr] opcode (0b1110011): CSRRW - CSR: {csr_addr} - rd: {rd} - rs1: {rs1}");
             },
             0b010 => {
                 /*
@@ -488,7 +489,7 @@ impl BasicCpu {
                     // Set bits in CSR from register
                     self.set_csr(csr_addr as usize, csr_value | self.get_register(rs1 as usize));
                 }
-                info!("[Instruction] opcode (0b1110011): CSRRS - CSR: {csr_addr} - rd: {rd} - rs1: {rs1}");
+                info!("[execute_system_csr] opcode (0b1110011): CSRRS - CSR: {csr_addr} - rd: {rd} - rs1: {rs1}");
             },
             0b011 => {
                 /*
@@ -503,7 +504,7 @@ impl BasicCpu {
                     // Clear bits in CSR from register
                     self.set_csr(csr_addr as usize, csr_value & !self.get_register(rs1 as usize));
                 }
-                info!("[Instruction] opcode (0b1110011): CSRRC - CSR: {csr_addr} - rd: {rd} - rs1: {rs1}");
+                info!("[execute_system_csr] opcode (0b1110011): CSRRC - CSR: {csr_addr} - rd: {rd} - rs1: {rs1}");
             },
             0b101 => {
                 /*
@@ -518,7 +519,7 @@ impl BasicCpu {
                 } else {
                     warn!("CSRRWI instruction with rd = 0, no value will be stored in register");
                 }
-                info!("[Instruction] opcode (0b1110011): CSRRWI - CSR: {csr_addr} - rd: {rd} - imm: {rs1}");
+                info!("[execute_system_csr] opcode (0b1110011): CSRRWI - CSR: {csr_addr} - rd: {rd} - imm: {rs1}");
             },
             0b110 => {
                 /*                
@@ -533,7 +534,7 @@ impl BasicCpu {
                     // Set bits in CSR from immediate value
                     self.set_csr(csr_addr as usize, csr_value | rs1 as TReg);
                 }
-                info!("[Instruction] opcode (0b1110011): CSRRSI - CSR: {csr_addr} - rd: {rd} - imm: {rs1}");
+                info!("[execute_system_csr] opcode (0b1110011): CSRRSI - CSR: {csr_addr} - rd: {rd} - imm: {rs1}");
             },
             0b111 => {
                 /*                
@@ -548,9 +549,35 @@ impl BasicCpu {
                     // Clear bits in CSR from immediate value
                     self.set_csr(csr_addr as usize, csr_value & !(rs1 as TReg));
                 }
-                info!("[Instruction] opcode (0b1110011): CSRRCI - CSR: {csr_addr} - rd: {rd} - imm: {rs1}");
+                info!("[execute_system_csr] opcode (0b1110011): CSRRCI - CSR: {csr_addr} - rd: {rd} - imm: {rs1}");
             },
             _ => panic!("Function (System-CSR) with code func3 {func3} not found")
+        }
+    }
+
+    pub fn execute_rv64i_extensions(&mut self, instr: TInstr) {
+        // RV64I extensions (e.g. MUL, DIV, etc.) can be implemented here
+        // For now, we will just log that this instruction is not implemented
+        let func3: TInstr = self.instr_func3(instr);
+        let func7: TInstr = self.instr_funct7(instr);
+        let rd: TInstr = self.instr_rd(instr);
+        let rs1: TInstr = self.instr_rs1(instr);
+        let rs2: TInstr = self.instr_rs2_shamt(instr);
+        info!("[execute_rv64i_extensions] opcode (0b0111011): func3: {func3} - func7: {func7} - rd: {rd} - rs1: {rs1} - rs2: {rs2}");
+        /*
+        0000000 rs2 rs1 000 rd 0111011 ADDW 
+        0100000 rs2 rs1 000 rd 0111011 SUBW 
+        0000000 rs2 rs1 001 rd 0111011 SLLW 
+        0000000 rs2 rs1 101 rd 0111011 SRLW 
+        0100000 rs2 rs1 101 rd 0111011 SRAW        
+        */
+        match (func3, func7) {
+            (0b000, 0b0000000) => self.set_register(rd as usize, self.get_register(rs1 as usize).wrapping_add(self.get_register(rs2 as usize))), // addw
+            (0b000, 0b0100000) => self.set_register(rd as usize, ((self.get_register(rs1 as usize) as i64).wrapping_sub(self.get_register(rs2 as usize) as i64)) as TReg), // subw
+            (0b001, 0b0000000) => self.set_register(rd as usize, self.get_register(rs1 as usize).wrapping_shl(self.get_register(rs2 as usize) as u32)), // sllw
+            (0b101, 0b0000000) => self.set_register(rd as usize, self.get_register(rs1 as usize).wrapping_shr(self.get_register(rs2 as usize) as u32)), // srlw
+            (0b101, 0b0100000) => self.set_register(rd as usize, ((self.get_register(rs1 as usize) as i64).wrapping_shr(self.get_register(rs2 as usize) as u32)) as TReg), // sraw
+            _ => panic!("Function (RV64I-Extensions) with code func3 {func3} AND func7 {func7} not found")
         }
     }
 }

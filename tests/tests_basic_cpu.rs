@@ -522,4 +522,64 @@ mod tests {
         // Should not modify CSR when rs1 = x0
         assert_eq!(cpu.get_csr(csr_addr), 0xDEAD_BEEF);
     }
+
+        #[test]
+    fn test_rv64i_extension_instructions() {
+        test_init();
+        let mut cpu = BasicCpu::new();
+        cpu.init();
+
+        // Test ADDW
+        cpu.set_register(1, 0x00000000FFFFFFFF);  // Set x1 to max 32-bit value
+        cpu.set_register(2, 0x0000000000000001);  // Set x2 to 1
+        let addw = 0x002080BB;    // addw x1, x1, x2
+        let _ = cpu.execute_instr(addw);
+        // Result should be sign-extended to 64 bits
+        assert_eq!(cpu.get_register(1), 0x100000000);  
+
+        // Test SUBW
+        cpu.set_register(3, 10);  // Set x3 to 10
+        cpu.set_register(4, 11);  // Set x4 to 1
+        let subw = 0x4041813B;    // subw x2, x3, x4
+        let _ = cpu.execute_instr(subw);
+        assert_eq!(cpu.get_register(2) as i64, -1);  // 10 - 11 = -1 
+
+        // Test SLLW (Shift Left Logical Word)
+        cpu.set_register(5, 0x0000000000000001);  // Set x5 to 1
+        cpu.set_register(6, 0x0000000000000004);  // Set x6 to 4 (shift amount)
+        let sllw = 0x0062923B;    // sllw x4, x5, x6
+        let _ = cpu.execute_instr(sllw);
+        assert_eq!(cpu.get_register(4), 16);  // 1 << 4 = 16
+
+        // Test SRLW (Shift Right Logical Word)
+        cpu.set_register(7, 0x0000_0000_1000_0000);  // Set x7 to large value
+        cpu.set_register(8, 0x0000000000000004);  // Set x8 to 4 (shift amount)
+        let srlw = 0x0083D33B;    // srlw x6, x7, x8
+        let _ = cpu.execute_instr(srlw);
+        assert_eq!(cpu.get_register(6), 0x100_0000);  // Logical shift, zeros inserted
+
+        // Test SRAW (Shift Right Arithmetic Word)
+        cpu.set_register(9, 0xFFFFFFFF80000000);  // Set x9 to negative value
+        cpu.set_register(10, 0x0000000000000004); // Set x10 to 4 (shift amount)
+        let sraw = 0x40A4D43B;    // sraw x8, x9, x10
+        let _ = cpu.execute_instr(sraw);
+        // Arithmetic shift should preserve sign bit
+        assert_eq!(cpu.get_register(8), 0xFFFFFFFFF8000000);
+
+
+        // Test SUBW underflow
+        cpu.set_register(13, 0x0000000000000000);
+        cpu.set_register(14, 0x0000000000000001);
+        let subw_underflow = 0x40E686BB;    // subw x13, x13, x14
+        let _ = cpu.execute_instr(subw_underflow);
+        // Result should be -1 sign-extended to 64 bits
+        assert_eq!(cpu.get_register(13) as i64, -1);
+
+        // Test SLLW with max shift
+        cpu.set_register(15, 0x0000000000000001);
+        cpu.set_register(16, 0x000000000000001F);  // Shift by 31 (max valid shift)
+        let sllw_max = 0x010797BB;    // sllw x15, x15, x16
+        let _ = cpu.execute_instr(sllw_max);
+        assert_eq!(cpu.get_register(15), 0x0000000080000000);
+    }
 }
