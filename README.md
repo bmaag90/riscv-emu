@@ -2,7 +2,8 @@
 
 - [x] RV32I Base Instruction Set
 - [x] CSR
-- [ ] RV64I Base Instruction Set
+- [x] RV64I Base Instruction Set
+- [ ] C extension: “C” Standard Extension for Compressed Instructions
 - [ ] M extension
 - [ ] F extension
 - [ ] A extension

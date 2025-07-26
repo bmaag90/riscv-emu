@@ -60,7 +60,7 @@ impl BasicCpu {
             warn!("Invalid register index {idx}");
             return 
         }
-        println!("Setting register {idx} to {value}");
+        info!("Setting register {idx} to {value}");
         self.registers[idx] = value;
     }
 
@@ -96,7 +96,7 @@ impl BasicCpu {
         self.mem.dram_read(self.get_pc() as usize, 32) as TInstr // read instruction at program counter, 4bytes
     }
 
-    pub fn execute_instr(&mut self, instr: TInstr){
+    pub fn execute_instr(&mut self, instr: TInstr)  -> Result<(), String> {
         let opcode: u32 = self.instr_opcode(instr);
         //let func3: u32 = self.instr_func3(instr);
         //let instr_funct7: u32 = self.instr_funct7(instr);
@@ -113,8 +113,9 @@ impl BasicCpu {
             0b0110011 => self.execute_r_type(instr),
             0b0001111 => self.execute_fence(instr),
             0b1110011 => self.execute_system_csr(instr), // SYSTEM instruction, e.g. ECALL, EBREAK
-            _ => panic!("Instruction with opcode {opcode} not implemented yet"),
+            _ => return Err("Instruction with opcode {opcode} not implemented yet".to_string()),
         }
+        return Ok(());
     }
     //
     // Instruction decoding
@@ -145,25 +146,25 @@ impl BasicCpu {
         (instr >> 25) & 0x7F // 0b0111 -> bits[25:31]
     }
 
-    pub fn instr_imm_i(&self, instr: TInstr) -> TInstr {
-        (instr >> 20) & 0xfff
+    pub fn instr_imm_i(&self, instr: TInstr) -> TImm {
+        ((instr & 0xfff00000) as i32 as i64 >> 20) as TImm
     }
    
-    pub fn instr_imm_s(&self, instr: TInstr) -> TInstr {
+    pub fn instr_imm_s(&self, instr: TInstr) -> TImm {
         // bits[0:4]              0b0111 -> bits[25:31]
-        ((instr >> 7) & 0x1F) | ((instr & 0xfe000000) >> 20) 
+        ((instr & 0xfe000000) as i32 as i64 >> 20) as TImm | ((instr >> 7) & 0x1F) as TImm // bits[7:11]
     }
 
-    pub fn instr_imm_u(&self, instr: TInstr) -> TInstr {
-        instr & 0xfffff000 // NOTE: NOT bit shifted, lower 12 bits are already filled with zeros for LUI (& auipc) instr.
+    pub fn instr_imm_u(&self, instr: TInstr) -> TImm {
+       (instr & 0xfffff000) as i32 as i64 as TImm // NOTE: NOT bit shifted, lower 12 bits are already filled with zeros for LUI (& auipc) instr.
     }
 
-    pub fn instr_imm_b(&self, instr: TInstr) -> TInstr {
-        ((instr & 0x80000000) >> 19) | ((instr & 0x80) << 4) | ((instr >> 20) & 0x7e0) | ((instr >> 7) & 0x1e)
+    pub fn instr_imm_b(&self, instr: TInstr) -> TImm {
+        ((instr & 0x80000000) as i32 as i64  >> 19) as TImm | ((instr & 0x80) << 4) as TImm | ((instr >> 20) & 0x7e0)  as TImm | ((instr >> 7) & 0x1e) as TImm
     }
 
-    pub fn instr_imm_j(&self, instr: TInstr) -> TInstr {
-        ((instr & 0x80000000) >> 11) | (instr & 0xff000) | ((instr >> 9) & 0x800) | ((instr >> 20) & 0x7fe)
+    pub fn instr_imm_j(&self, instr: TInstr) -> TImm {
+        ((instr & 0x80000000) as i32 as i64 >> 11) as TImm | (instr & 0xff000) as TImm | ((instr >> 9) & 0x800) as TImm | ((instr >> 20) & 0x7fe) as TImm
     }
 
     pub fn instr_csr_addr(&self, instr: TInstr) -> TInstr {
@@ -177,7 +178,7 @@ impl BasicCpu {
         let func3: TInstr = self.instr_func3(instr);
         let rd: TInstr = self.instr_rd(instr);
         let rs1: TInstr = self.instr_rs1(instr);
-        let imm: TImm = self.instr_imm_i(instr) as i32 as i64 as u64; // sign-extend immediate value
+        let imm: TImm = self.instr_imm_i(instr); // sign-extend immediate value
         let rs2_shamt: TInstr = self.instr_rs2_shamt(instr);
         let func7: TInstr = self.instr_funct7(instr);
         info!("[Instruction] opcode (0b0010011): func3: {func3} - rd: {rd} - rs1: {rs1} - imm: {imm}");
@@ -211,7 +212,7 @@ impl BasicCpu {
 
     pub fn execute_lui(&mut self, instr: TInstr){
         let rd: TInstr = self.instr_rd(instr);
-        let imm: TImm = self.instr_imm_u(instr) as i32 as i64 as u64; // sign-extend immediate value
+        let imm: TImm = self.instr_imm_u(instr); // sign-extend immediate value
         info!("[Instruction] opcode (0b0110111): rd: {rd} - imm: {imm}");
         // imm[31:12] rd 0110111 LUI
         self.set_register(rd as usize, imm);
@@ -219,7 +220,7 @@ impl BasicCpu {
 
     pub fn execute_auipc(&mut self, instr: TInstr){
         let rd: TInstr = self.instr_rd(instr);
-        let imm: TImm = self.instr_imm_u(instr) as i32 as i64 as u64; // sign-extend immediate value
+        let imm: TImm = self.instr_imm_u(instr); // sign-extend immediate value
         let pc: TReg = self.get_pc();
         info!("[Instruction] opcode (0b0010111): rd: {rd} - imm: {imm} (- pc: {pc})");
         // imm[31:12] rd 0010111 AUIPC
@@ -228,7 +229,7 @@ impl BasicCpu {
 
     pub fn execute_jal(&mut self, instr: TInstr){
         let rd: TInstr = self.instr_rd(instr);
-        let imm: TImm = self.instr_imm_j(instr) as i32 as i64 as u64; // sign-extend immediate value
+        let imm: TImm = self.instr_imm_j(instr); // sign-extend immediate value
         let pc: TReg = self.get_pc();
         info!("[Instruction] opcode (0b1101111): rd: {rd} - imm: {imm} (- pc: {pc})");
         // imm[20] imm[10:1] imm[11] imm[19:12] rd 1101111 JAL
@@ -240,7 +241,7 @@ impl BasicCpu {
     pub fn execute_jalr(&mut self, instr: TInstr){
         let rd: TInstr = self.instr_rd(instr);
         let rs1: TInstr = self.instr_rs1(instr);
-        let imm: TImm = self.instr_imm_i(instr) as i32 as i64 as u64; // sign-extend immediate value;
+        let imm: TImm = self.instr_imm_i(instr); // sign-extend immediate value;
         let pc: TReg = self.get_pc();
         info!("[Instruction] opcode (0b1100111): rd: {rd} - rs1: {rs1} - imm: {imm} (- pc: {pc})");
         // imm[11:0] rs1 000 rd 1100111 JALR
@@ -252,7 +253,7 @@ impl BasicCpu {
         let func3: TInstr = self.instr_func3(instr);
         let rs1: TInstr = self.instr_rs1(instr);
         let rs2: TInstr = self.instr_rs2_shamt(instr);
-        let imm: TImm = self.instr_imm_b(instr) as i32 as i64 as u64; // sign-extend immediate value
+        let imm: TImm = self.instr_imm_b(instr); // sign-extend immediate value
         let pc: TReg = self.get_pc();
         info!("[Instruction] opcode (0b1100011): func3: {func3} - rs1: {rs1} - rs2: {rs2} - imm: {imm} (- pc: {pc})");
         /*
@@ -314,7 +315,7 @@ impl BasicCpu {
         let func3: TInstr = self.instr_func3(instr);
         let rd: TInstr = self.instr_rd(instr);
         let rs1: TInstr = self.instr_rs1(instr);
-        let imm: TImm = self.instr_imm_i(instr) as i32 as i64 as u64; // sign-extend immediate value
+        let imm: TImm = self.instr_imm_i(instr); // sign-extend immediate value
         info!("[Instruction] opcode (0b0000011): func3: {func3} - rd: {rd} - rs1: {rs1} - imm: {imm}");
         /*
         imm[11:0] rs1 000 rd 0000011 LB 
@@ -351,6 +352,22 @@ impl BasicCpu {
                 let val = self.mem.dram_read(target_addr, 16); // LHU
                 self.set_register(rd as usize, val as u16 as TReg);
             },
+            // RV64 extensions
+            // imm[11:0] rs1 110 rd 0000011 LWU 
+            // imm[11:0] rs1 011 rd 0000011 LD
+            0b110 => {
+                // LWU:
+                // The LWinstruction loads a 32-bit value from memory and sign-extends this to 64 bits before storing it in register rd for RV64I. 
+                // The LWU instruction, on the other hand, zero-extends the 32-bit value from memory for RV64I.
+                let val = self.mem.dram_read(target_addr, 32); // LWU
+                self.set_register(rd as usize, val as u32 as TReg);
+            },
+            0b011 => {
+                // LD:
+                // The LD instruction loads a 64-bit value from memory and stores it in register rd for RV64I.
+                let val = self.mem.dram_read(target_addr, 64); // LD
+                self.set_register(rd as usize, val as i64 as TReg);
+            },
             _ => panic!("Function (Load-Type) with code func3 {func3} not found")
         }
     }
@@ -359,7 +376,7 @@ impl BasicCpu {
         let func3: TInstr = self.instr_func3(instr);
         let rs1: TInstr = self.instr_rs1(instr);
         let rs2: TInstr = self.instr_rs2_shamt(instr);
-        let imm: TImm = self.instr_imm_s(instr) as i32 as i64 as u64; // sign-extend immediate value
+        let imm: TImm = self.instr_imm_s(instr); // sign-extend immediate value
         info!("[Instruction] opcode (0b0100011): func3: {func3} - rs1: {rs1} - rs2: {rs2} - imm: {imm}");
         /*
         imm[11:5] rs2 rs1 000 imm[4:0] 0100011 SB 
@@ -386,6 +403,12 @@ impl BasicCpu {
                 let val = self.get_register(rs2 as usize) as i32 as u64; // SW
                 self.mem.dram_write(target_addr, 32, val);
             },
+            0b011 =>{
+                // SD:
+                // imm[11:5] rs2 rs1 011 imm[4:0] 0100011 SD
+                let val = self.get_register(rs2 as usize) as i64 as u64; // SD
+                self.mem.dram_write(target_addr, 64, val);
+            }
             _ => panic!("Function (Store-Type) with code func3 {func3} not found")
         }
     }

@@ -2,6 +2,7 @@ use std::fs::File;
 use std::io::prelude::*;
 use std::env;
 use log::{info, warn};
+use env_logger;
 
 mod memory {
     pub mod dram;
@@ -13,7 +14,8 @@ mod cpu {
 use cpu::basic_cpu;
 
 fn main() {
-    
+    env_logger::init();
+    info!("Starting RISC-V Emulator...");
     let args: Vec<String> = env::args().collect();
 
     if args.len() != 2 {
@@ -31,33 +33,45 @@ fn main() {
         cpu.mem.dram_write(dram::DRAM_BASE_ADDR + i, 8, (*byte).into());
     }
 
-    info!("Loaded binary into DRAM memory.");
+    info!("INIT - Loaded binary into DRAM memory.");
     
-    info!("Initializing CPU...");
+    info!("INIT - Initializing CPU...");
     cpu.init();
-    info!("Current registers:");
+    info!("INIT - Current registers:");
     cpu.print_registers();
-    info!("Current PC: {:#x}", cpu.get_pc());
-    info!("Starting execution...");
+    info!("INIT - Current PC: {:#x}", cpu.get_pc());
+    info!("START - Starting execution...");
     loop {
 
         let current_instruction = cpu.fetch_instr();
         let current_pc = cpu.get_pc();
 
-        info!("PC: {:#x}, Instruction: {:#x}", current_pc, current_instruction);
+        info!("MAIN LOOP - PC: {:#x}, Instruction: {:#x}", current_pc, current_instruction);
 
-        cpu.execute_instr(current_instruction); 
+        match cpu.execute_instr(current_instruction) {
+            Ok(_) => {},
+            Err(err) => {
+                println!("MAIN LOOP - Error executing instruction at PC {:#x}: {}", current_pc, err);
+                break
+            },
+        };
+ 
 
         cpu.set_pc(cpu.get_pc() + 4);
 
         if cpu.get_pc() >= (dram::DRAM_BASE_ADDR + dram::DRAM_SIZE) as u64 {
-            warn!("Reached end of DRAM memory.");
+            warn!("MAIN LOOP - Reached end of DRAM memory.");
             break;
         }
 
         if cpu.get_pc() == 0 {
-            info!("Program terminated.");
+            info!("MAIN LOOP - Program terminated.");
             break;
         }
     }
+    info!("DONE - Final CPU state:");
+    cpu.print_registers();
+    info!("DONE - Final PC: {:#x}", cpu.get_pc());
+    info!("DONE - Emulation finished.");
+
 }
