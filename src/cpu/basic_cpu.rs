@@ -36,14 +36,14 @@ impl BasicCpu {
 
     pub fn print_registers(&self){
         info!("=== REGISTERS ===");
-        info!("[0:3] {} {} {} {}", self.registers[0],self.registers[1],self.registers[2],self.registers[3]);
-        info!("[4:7] {} {} {} {}", self.registers[4],self.registers[5],self.registers[6],self.registers[7]);
-        info!("[8:11] {} {} {} {}", self.registers[8],self.registers[9],self.registers[10],self.registers[11]);
-        info!("[12:15] {} {} {} {}", self.registers[12],self.registers[13],self.registers[14],self.registers[15]);
-        info!("[16:19] {} {} {} {}", self.registers[16],self.registers[17],self.registers[18],self.registers[19]);
-        info!("[20:23] {} {} {} {}", self.registers[20],self.registers[21],self.registers[22],self.registers[23]);
-        info!("[24:27] {} {} {} {}", self.registers[24],self.registers[25],self.registers[26],self.registers[27]);
-        info!("[28:31] {} {} {} {}", self.registers[28],self.registers[29],self.registers[30],self.registers[31]);
+        info!("[0:3] {:#x} {:#x} {:#x} {:#x}", self.registers[0],self.registers[1],self.registers[2],self.registers[3]);
+        info!("[4:7] {:#x} {:#x} {:#x} {:#x}", self.registers[4],self.registers[5],self.registers[6],self.registers[7]);
+        info!("[8:11] {:#x} {:#x} {:#x} {:#x}", self.registers[8],self.registers[9],self.registers[10],self.registers[11]);
+        info!("[12:15] {:#x} {:#x} {:#x} {:#x}", self.registers[12],self.registers[13],self.registers[14],self.registers[15]);
+        info!("[16:19] {:#x} {:#x} {:#x} {:#x}", self.registers[16],self.registers[17],self.registers[18],self.registers[19]);
+        info!("[20:23] {:#x} {:#x} {:#x} {:#x}", self.registers[20],self.registers[21],self.registers[22],self.registers[23]);
+        info!("[24:27] {:#x} {:#x} {:#x} {:#x}", self.registers[24],self.registers[25],self.registers[26],self.registers[27]);
+        info!("[28:31] {:#x} {:#x} {:#x} {:#x}", self.registers[28],self.registers[29],self.registers[30],self.registers[31]);
         info!("=================");
     }
 
@@ -60,7 +60,7 @@ impl BasicCpu {
             warn!("Invalid register index {idx}");
             return 
         }
-        info!("Setting register {idx} to {value}");
+        info!("Setting register {idx} to {value:#x}");
         self.registers[idx] = value;
     }
 
@@ -69,7 +69,7 @@ impl BasicCpu {
     }
 
     pub fn set_pc(&mut self, pc: TReg) {
-        info!("Setting program counter to {pc}");
+        info!("Setting program counter to {:#x}", pc);
         self.pc = pc;
     }
 
@@ -113,8 +113,9 @@ impl BasicCpu {
             0b0110011 => self.execute_r_type(instr),
             0b0001111 => self.execute_fence(instr),
             0b1110011 => self.execute_system_csr(instr), // SYSTEM instruction, e.g. ECALL, EBREAK
+            0b0011011 => self.execute_rv64i_immediate(instr), // RV64I extensions
             0b0111011 => self.execute_rv64i_extensions(instr),
-            _ => return Err("Instruction with opcode {opcode} not implemented yet".to_string()),
+            _ => return Err(format!("Instruction with opcode {opcode:#b} not implemented yet")),
         }
         return Ok(());
     }
@@ -182,7 +183,7 @@ impl BasicCpu {
         let imm: TImm = self.instr_imm_i(instr); // sign-extend immediate value
         let rs2_shamt: TInstr = self.instr_rs2_shamt(instr);
         let func7: TInstr = self.instr_funct7(instr);
-        info!("[execute_imm] opcode (0b0010011): func3: {func3} - rd: {rd} - rs1: {rs1} - imm: {imm}");
+        info!("[execute_imm] opcode (0b0010011): func3: {func3:#x} - rd: {rd} - rs1: {rs1} - imm: {imm}");
         /*
         imm[11:0] rs1 000 rd 0010011 ADDI 
         imm[11:0] rs1 010 rd 0010011 SLTI 
@@ -203,11 +204,11 @@ impl BasicCpu {
             0b101 => match func7 {
                 0b0000000 => self.set_register(rd as usize, self.get_register(rs1 as usize).wrapping_shr(rs2_shamt)), // srli - SRLI is a logical right shift (zeros are shifted into the upper bits).
                 0b0100000 => self.set_register(rd as usize, ((self.get_register(rs1 as usize) as i64).wrapping_shr(rs2_shamt)) as TReg), // srai - SRAI is an arithmetic right shift (the original sign bit is copied into the vacated upper bits).
-                _ => panic!("Function (I-Type) with code func3 {func3} AND func7 {func7} not found")
+                _ => panic!("Function (I-Type) with code func3 {func3:#x} AND func7 {func7:#x} not found")
             },
             0b110 => self.set_register(rd as usize, self.get_register(rs1 as usize) | imm), // ori
             0b111 => self.set_register(rd as usize, self.get_register(rs1 as usize) & imm), // andi
-            _ => panic!("Function (I-Type) with code func3 {func3} not found")
+            _ => panic!("Function (I-Type) with code func3 {func3:#x} not found")
         }
     }
 
@@ -258,7 +259,7 @@ impl BasicCpu {
         let rs2: TInstr = self.instr_rs2_shamt(instr);
         let imm: TImm = self.instr_imm_b(instr); // sign-extend immediate value
         let pc: TReg = self.get_pc();
-        info!("[execute_branch] opcode (0b1100011): func3: {func3} - rs1: {rs1} - rs2: {rs2} - imm: {imm} (- pc: {pc})");
+        info!("[execute_branch] opcode (0b1100011): func3: {func3:#x} - rs1: {rs1} - rs2: {rs2} - imm: {imm} (- pc: {pc})");
         /*
         imm[12|10:5] rs2 rs1 000 imm[4:1|11] 1100011 BEQ 
         imm[12|10:5] rs2 rs1 001 imm[4:1|11] 1100011 BNE 
@@ -310,7 +311,7 @@ impl BasicCpu {
                     self.set_pc(pc.wrapping_add(4));
                 }*/
             },
-            _ => info!("Function (B-Type) with code func3 {func3} not found")
+            _ => info!("Function (B-Type) with code func3 {func3:#x} not found")
         }   
     }
 
@@ -319,7 +320,7 @@ impl BasicCpu {
         let rd: TInstr = self.instr_rd(instr);
         let rs1: TInstr = self.instr_rs1(instr);
         let imm: TImm = self.instr_imm_i(instr); // sign-extend immediate value
-        info!("[execute_load] opcode (0b0000011): func3: {func3} - rd: {rd} - rs1: {rs1} - imm: {imm}");
+        info!("[execute_load] opcode (0b0000011): func3: {func3:#x} - rd: {rd} - rs1: {rs1} - imm: {imm}");
         /*
         imm[11:0] rs1 000 rd 0000011 LB 
         imm[11:0] rs1 001 rd 0000011 LH 
@@ -329,9 +330,9 @@ impl BasicCpu {
         */
         let target_addr: usize = (self.get_register(rs1 as usize).wrapping_add(imm)) as usize;
         if target_addr >= DRAM_BASE_ADDR && target_addr < (DRAM_BASE_ADDR + DRAM_SIZE) {
-            info!("Reading from DRAM at address {target_addr}");
+            info!("Reading from DRAM at address {target_addr:#x}");
         } else {
-            warn!("Attempt to read from invalid DRAM address {target_addr}");
+            warn!("Attempt to read from invalid DRAM address {target_addr:#x}");
             return;
         }
         match func3 {
@@ -371,7 +372,7 @@ impl BasicCpu {
                 let val = self.mem.dram_read(target_addr, 64); // LD
                 self.set_register(rd as usize, val as i64 as TReg);
             },
-            _ => panic!("Function (Load-Type) with code func3 {func3} not found")
+            _ => panic!("Function (Load-Type) with code func3 {func3:#x} not found")
         }
     }
 
@@ -380,7 +381,7 @@ impl BasicCpu {
         let rs1: TInstr = self.instr_rs1(instr);
         let rs2: TInstr = self.instr_rs2_shamt(instr);
         let imm: TImm = self.instr_imm_s(instr); // sign-extend immediate value
-        info!("[execute_store] opcode (0b0100011): func3: {func3} - rs1: {rs1} - rs2: {rs2} - imm: {imm}");
+        info!("[execute_store] opcode (0b0100011): func3: {func3:#x} - rs1: {rs1} - rs2: {rs2} - imm: {imm}");
         /*
         imm[11:5] rs2 rs1 000 imm[4:0] 0100011 SB 
         imm[11:5] rs2 rs1 001 imm[4:0] 0100011 SH 
@@ -412,7 +413,7 @@ impl BasicCpu {
                 let val = self.get_register(rs2 as usize) as i64 as u64; // SD
                 self.mem.dram_write(target_addr, 64, val);
             }
-            _ => panic!("Function (Store-Type) with code func3 {func3} not found")
+            _ => panic!("Function (Store-Type) with code func3 {func3:#x} not found")
         }
     }
 
@@ -422,7 +423,7 @@ impl BasicCpu {
         let rs1: TInstr = self.instr_rs1(instr);
         let rs2: TInstr = self.instr_rs2_shamt(instr);
         let func7: TInstr = self.instr_funct7(instr);
-        info!("[execute_r_type] opcode (0b0110011): func3: {func3} - rd: {rd} - rs1: {rs1} - rs2: {rs2} - func7: {func7}");
+        info!("[execute_r_type] opcode (0b0110011): func3: {func3:#x} - rd: {rd} - rs1: {rs1} - rs2: {rs2} - func7: {func7:#x}");
         /*
         0000000 rs2 rs1 000 rd 0110011 ADD 
         0100000 rs2 rs1 000 rd 0110011 SUB 
@@ -446,7 +447,7 @@ impl BasicCpu {
             (0b101, 0b0100000) => self.set_register(rd as usize, ((self.get_register(rs1 as usize) as i64).wrapping_shr(self.get_register(rs2 as usize) as u32)) as TReg), // sra
             (0b110, 0b0000000) => self.set_register(rd as usize, self.get_register(rs1 as usize) | self.get_register(rs2 as usize)), // or
             (0b111, 0b0000000) => self.set_register(rd as usize, self.get_register(rs1 as usize) & self.get_register(rs2 as usize)), // and
-            _ => panic!("Function (R-Type) with code func3 {func3} AND func7 {func7} not found")
+            _ => panic!("Function (R-Type) with code func3 {func3:#x} AND func7 {func7:#x} not found")
         }   
     }
 
@@ -553,7 +554,7 @@ impl BasicCpu {
                 }
                 info!("[execute_system_csr] opcode (0b1110011): CSRRCI - CSR: {csr_addr} - rd: {rd} - imm: {rs1}");
             },
-            _ => panic!("Function (System-CSR) with code func3 {func3} not found")
+            _ => panic!("Function (System-CSR) with code func3 {func3:#x} not found")
         }
     }
 
@@ -565,7 +566,7 @@ impl BasicCpu {
         let rd: TInstr = self.instr_rd(instr);
         let rs1: TInstr = self.instr_rs1(instr);
         let rs2: TInstr = self.instr_rs2_shamt(instr);
-        info!("[execute_rv64i_extensions] opcode (0b0111011): func3: {func3} - func7: {func7} - rd: {rd} - rs1: {rs1} - rs2: {rs2}");
+        info!("[execute_rv64i_extensions] opcode (0b0111011): func3: {func3:#x} - func7: {func7:#x} - rd: {rd} - rs1: {rs1} - rs2: {rs2}");
         /*
         0000000 rs2 rs1 000 rd 0111011 ADDW 
         0100000 rs2 rs1 000 rd 0111011 SUBW 
@@ -579,7 +580,31 @@ impl BasicCpu {
             (0b001, 0b0000000) => self.set_register(rd as usize, self.get_register(rs1 as usize).wrapping_shl(self.get_register(rs2 as usize) as u32)), // sllw
             (0b101, 0b0000000) => self.set_register(rd as usize, self.get_register(rs1 as usize).wrapping_shr(self.get_register(rs2 as usize) as u32)), // srlw
             (0b101, 0b0100000) => self.set_register(rd as usize, ((self.get_register(rs1 as usize) as i64).wrapping_shr(self.get_register(rs2 as usize) as u32)) as TReg), // sraw
-            _ => panic!("Function (RV64I-Extensions) with code func3 {func3} AND func7 {func7} not found")
+            _ => panic!("Function (RV64I-Extensions) with code func3 {func3:#x} AND func7 {func7:#x} not found")
+        }
+    }
+
+    pub fn execute_rv64i_immediate(&mut self, instr: TInstr) {
+        // RV64I immediate instructions can be implemented here
+        // For now, we will just log that this instruction is not implemented
+        let func3: TInstr = self.instr_func3(instr);
+        let rd: TInstr = self.instr_rd(instr);
+        let rs1: TInstr = self.instr_rs1(instr);
+        let rs2_shamt: TInstr = self.instr_rs2_shamt(instr);
+        let imm: TImm = self.instr_imm_i(instr); // sign-extend immediate value
+        info!("[execute_rv64i_immediate] opcode (0b0011011): func3: {func3:#x} - rd: {rd} - rs1: {rs1} - imm: {imm}");
+        /*
+        imm[11:0] rs1 000 rd 0011011 ADDIW 
+        0000000 shamt rs1 001 rd 0011011 SLLIW 
+        0000000 shamt rs1 101 rd 0011011 SRLIW 
+        0100000 shamt rs1 101 rd 0011011 SRAIW
+        */
+        match func3 {
+            0b000 => self.set_register(rd as usize, self.get_register(rs1 as usize).wrapping_add(imm)), // addiw
+            0b001 => self.set_register(rd as usize, self.get_register(rs1 as usize).wrapping_shl(rs2_shamt)), // slliw
+            0b101 => self.set_register(rd as usize, self.get_register(rs1 as usize).wrapping_shr(rs2_shamt)), // srliw
+            0b111 => self.set_register(rd as usize, ((self.get_register(rs1 as usize) as i64).wrapping_shr(rs2_shamt)) as TReg), // sraiw
+            _ => panic!("Function (RV64I-Immediate) with code func3 {func3:#x} not found")
         }
     }
 }

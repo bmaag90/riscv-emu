@@ -1,6 +1,6 @@
 use log::info;
 
-pub const DRAM_SIZE: usize = 1024*1024*1;
+pub const DRAM_SIZE: usize = 1024*1024*8;
 pub const DRAM_BASE_ADDR: usize = 0x80000000;
 
 pub struct DramMemory {

@@ -40,18 +40,16 @@ fn main() {
     info!("Init - Current registers:");
     cpu.print_registers();
     info!("Init - Current PC: {:#x}", cpu.get_pc());
-    info!("Init - setting ra to 0x0");
-    cpu.set_register(1, 0x0); // ra = register x1
     info!("Init - Starting execution...");
     loop {
-
+        info!("FETCH");
         let current_instruction = cpu.fetch_instr();
         let current_pc = cpu.get_pc();
 
         info!("PC: {:#x}, Instruction: {:#x}", current_pc, current_instruction);
 
         cpu.set_pc(cpu.get_pc() + 4);
-
+        info!("DECODE + EXECUTE");
         match cpu.execute_instr(current_instruction) {
             Ok(_) => {},
             Err(err) => {
@@ -66,7 +64,7 @@ fn main() {
         }
 
         if cpu.get_pc() == 0 {
-            info!("Program terminated.");
+            info!("Program terminated - PC at 0x0.");
             break;
         }
     }
