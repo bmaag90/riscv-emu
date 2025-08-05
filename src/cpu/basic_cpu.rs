@@ -234,7 +234,8 @@ impl BasicCpu {
         let pc: TReg = self.get_pc();
         info!("[execute_jal] opcode (0b1101111): rd: {rd} - imm: {imm} (- pc: {pc})");
         // imm[20] imm[10:1] imm[11] imm[19:12] rd 1101111 JAL
-        self.set_register(rd as usize, pc.wrapping_add(4)); // store return address
+        // self.set_register(rd as usize, pc.wrapping_add(4)); // store return address
+        self.set_register(rd as usize, pc); // store return address
         let new_pc: TReg = pc.wrapping_add(imm); // calculate new pc
         self.set_pc(new_pc); // jump to target address
     }
@@ -246,7 +247,8 @@ impl BasicCpu {
         let pc: TReg = self.get_pc();
         info!("[execute_jalr] opcode (0b1100111): rd: {rd} - rs1: {rs1} - imm: {imm} (- pc: {pc})");
         // imm[11:0] rs1 000 rd 1100111 JALR
-        self.set_register(rd as usize, pc.wrapping_add(4)); // store return address
+        // self.set_register(rd as usize, pc.wrapping_add(4)); // store return address
+        self.set_register(rd as usize, pc); // store return address
         self.set_pc(self.get_register(rs1 as usize).wrapping_add(imm) as TReg & !1); // jump to target address (clear LSB)
     }
 
@@ -268,45 +270,45 @@ impl BasicCpu {
         match func3 {
             0b000 => { // BEQ
                 if self.get_register(rs1 as usize) == self.get_register(rs2 as usize) {
-                    self.set_pc(pc.wrapping_add(imm));
-                } else {
+                    self.set_pc(pc.wrapping_add(imm).wrapping_sub(4)); 
+                } /*else {
                     self.set_pc(pc.wrapping_add(4));
-                }
+                }*/
             },
             0b001 => { // BNE
                 if self.get_register(rs1 as usize) != self.get_register(rs2 as usize) {
-                    self.set_pc(pc.wrapping_add(imm));
-                } else {
-                    self.set_pc(pc.wrapping_add(4));    
-                }
+                    self.set_pc(pc.wrapping_add(imm).wrapping_sub(4));
+                } /*else {
+                    self.set_pc(pc.wrapping_add(4));
+                }*/
             },
             0b100 => { // BLT
                 if (self.get_register(rs1 as usize) as i32) < (self.get_register(rs2 as usize) as i32) {
-                    self.set_pc(pc.wrapping_add(imm));
-                } else {
-                    self.set_pc(pc.wrapping_add(4));    
-                }
+                    self.set_pc(pc.wrapping_add(imm).wrapping_sub(4));
+                } /*else {
+                    self.set_pc(pc.wrapping_add(4));
+                }*/
             },
             0b101 => { // BGE
                 if (self.get_register(rs1 as usize) as i32) >= (self.get_register(rs2 as usize) as i32) {
-                    self.set_pc(pc.wrapping_add(imm));
-                } else {
-                    self.set_pc(pc.wrapping_add(4));    
-                }
+                    self.set_pc(pc.wrapping_add(imm).wrapping_sub(4));
+                } /*else {
+                    self.set_pc(pc.wrapping_add(4));
+                }*/
             },
             0b110 => { // BLTU
                 if self.get_register(rs1 as usize) < self.get_register(rs2 as usize) {
-                    self.set_pc(pc.wrapping_add(imm));
-                } else {
+                    self.set_pc(pc.wrapping_add(imm).wrapping_sub(4));
+                } /*else {
                     self.set_pc(pc.wrapping_add(4));
-                }
+                }*/
             },
             0b111 => { // BGEU
                 if self.get_register(rs1 as usize) >= self.get_register(rs2 as usize) {
-                    self.set_pc(pc.wrapping_add(imm));
-                } else {
+                    self.set_pc(pc.wrapping_add(imm).wrapping_sub(4));
+                } /*else {
                     self.set_pc(pc.wrapping_add(4));
-                }
+                }*/
             },
             _ => info!("Function (B-Type) with code func3 {func3} not found")
         }   
